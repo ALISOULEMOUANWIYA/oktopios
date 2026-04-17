@@ -1,0 +1,136 @@
+# Mots-clés du langage Oktopios
+
+## Déclarations de variables
+  var           → Variable mutable
+  val           → Constante (immutable)
+  ref           → Référence (futur)
+  inout         → Référence entrée/sortie
+
+## Types primitifs
+  int           → Entier
+  float         → Nombre décimal
+  string        → Chaîne de caractères
+  char          → Caractère unique
+  bool          → Booléen
+  void          → Absence de valeur
+  true / false  → Valeurs booléennes
+
+## Fonctions et lambdas
+  fun           → Déclaration de fonction
+  lambda        → Fonction anonyme
+  return        → Retour de valeur
+
+## Conditions
+  if            → Condition
+  elif          → Condition alternative
+  else          → Sinon
+  switch        → Sélecteur multi-cas
+  case          → Cas du switch
+  default       → Cas par défaut
+
+## Boucles
+  loop          → Boucle classique (for-style)
+  while         → Boucle conditionnelle
+  do / until    → Boucle do...until
+  for           → Boucle for-each
+  break         → Sortie de boucle
+  continue      → Passer à l'itération suivante
+
+## Boucles avancées
+  filterLoop    → Boucle avec filtre intégré
+  filterWhile   → Filtre while
+  sortLoop      → Boucle avec tri
+  permuteLoop   → Boucle avec permutations
+  permuteWhile  → Permutation while
+  circularLoop  → Boucle circulaire
+  circularWhile → Circulaire while
+  sleepingLoop  → Boucle avec pause
+
+## Modificateurs de boucle
+  source        → Source de données
+  filter        → Condition de filtrage
+  order         → Ordre de tri
+  asc / desc    → Tri croissant / décroissant
+  stride        → Pas de la boucle
+  shuffle       → Mélange aléatoire
+  pattern       → Motif de parcours
+  spiral        → Parcours en spirale
+  wave          → Parcours en vague
+  sectors       → Découpage en secteurs
+  trigger       → Déclencheur
+  mode          → Mode de boucle
+  whenever      → Condition déclencheur
+  step          → Pas (step)
+  waitUntil     → Attendre jusqu'à
+  by            → Par (pas)
+  where         → Filtre where
+  then          → Action enchaînée
+  using         → Utilisant
+  check         → Vérification
+
+## Logique et comparaison
+  and           → ET logique
+  or            → OU logique
+  not           → Négation
+  in            → Appartenance
+  not in        → Non-appartenance
+  is            → Égalité identitaire
+  is not        → Inégalité identitaire
+  is like       → Ressemblance
+  is not like   → Non-ressemblance
+  not empty     → Non vide
+
+## POO — Classes et interfaces
+  class         → Déclaration de classe
+  abstract      → Classe abstraite
+  interface     → Interface
+  extends       → Héritage
+  implements    → Implémentation d'interface
+  override      → Surcharge de méthode
+  activate      → Activation d'une méthode non héritée
+  invoke        → Invocation d'une méthode d'interface
+  super         → Accès au parent
+  super_force   → Accès forcé au parent
+  new           → Instanciation
+  this          → Instance courante
+  __construct   → Constructeur
+  __destruct    → Destructeur
+  static        → Membre statique
+  private       → Accès privé
+  protected     → Accès protégé
+  public        → Accès public
+  global        → Portée globale
+
+## Énumérations
+  enum          → Déclaration d'énumération
+
+## Gestion des erreurs
+  try           → Bloc protégé
+  catch         → Capture d'exception
+  finally       → Bloc final (toujours exécuté)
+  throw         → Lever une exception
+
+## Importation et modules
+  inject        → Importer un module natif
+  import        → Importer un fichier .okp
+  from          → Importation sélective
+  use           → Chemin vers une classe
+  as            → Alias d'importation
+  delete        → Supprimer une variable
+
+## Affichage
+  print         → Afficher une valeur
+
+## Architecture Oktopios (futur)
+  heart         → Noyau central
+  core          → Cœur
+  io            → Entrée/sortie vers le cœur
+  net           → Sortie réseau du cœur
+  tent          → Tentacule principale
+  ten           → Tentacule secondaire
+  tentRandom    → Tentacule aléatoire
+  intention     → Intention partagée
+  director      → Directeur (coordination)
+  supervisor    → Superviseur
+  agent         → Agent
+  secretary     → Secrétaire

@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "oktopios"
+version = "0.0.1"
+description = "Oktopios — un langage de programmation moderne et expressif 🐙"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Mouanwiya Ali Soule" }
+]
+keywords = ["language", "programming", "interpreter", "oktopios", "okp"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Interpreters",
+    "Intended Audience :: Developers",
+]
+dependencies = [
+    "colorama>=0.4.6",
+    "tabulate>=0.9.0",
+    "camelcase>=0.2",
+    "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/mouanwiya/oktopios"
+Issues   = "https://github.com/mouanwiya/oktopios/issues"
+
+[project.scripts]
+okp = "oktopios.vm.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["oktopios*"]
+
+[tool.setuptools.package-data]
+"oktopios" = ["metadata/*.txt", "metadata/*.md", "vm/modules/*.okp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]

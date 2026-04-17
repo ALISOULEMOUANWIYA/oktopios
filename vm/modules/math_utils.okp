@@ -1,0 +1,10 @@
+// modules/math_utils.okp
+val PI: float = 3.141592653589793
+
+fun square(x: int): int {
+    return x * x +2
+}
+
+fun hello(): void {
+    print("from math_utils")
+}
