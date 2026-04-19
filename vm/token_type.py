@@ -30,7 +30,7 @@ class TokenType(Enum):
     OR = auto()
     IF = auto()
     ELSE = auto()
-    ELIF = auto()      # ✅ Ajoute ceci
+    ELIF = auto()
     SWITCH = auto()
     CASE = auto()
     DEFAULT = auto()
