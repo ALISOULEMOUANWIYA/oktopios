@@ -3,6 +3,7 @@
 # =====================================================
 
 from native_advanced_collections import *
+from matrix import Matrix
 
 # =====================================================
 # --- Fonctions natives pour Oktopios (collections avancées) ---
@@ -59,5 +60,16 @@ NativeAdvancedFuncs = {
     "Iterator":{
         "itHas": lambda it: it.hasNext(),
         "itNext": lambda it: it.next(),
-    }
+    },
+    # --- Matrix ---
+    "matrix": {
+        "new": lambda shape, dense=False: MatrixObject(shape, dense),
+        "set": lambda m, coords, val: m.set(coords, val),
+        "get": lambda m, coords: m.get(coords),
+        "link": lambda m, coordsA, other, coordsB, meta=None, directed=False: m.link(coordsA, other, coordsB, meta, directed),
+        "traverse": lambda m, coords, strategy="dfs": m.traverse(coords, strategy),
+        "detect_cycle": lambda m, coords: m.detect_cycle(coords),
+    },
 }
+
+

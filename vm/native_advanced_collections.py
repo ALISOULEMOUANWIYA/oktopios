@@ -1,6 +1,7 @@
 # native_advanced_collections.py
 from bisect import bisect_left, bisect_right, insort
-
+import uuid
+from collections import deque
 # -----------------------------
 # LinkedList (doublement chaînée)
 # -----------------------------
@@ -171,3 +172,137 @@ class IteratorInstance:
         value = self.iterable[self.index]
         self.index += 1
         return value
+
+
+# ==============================
+# MATRIX N-D CHAINED STRUCTURE
+# ==============================
+
+class LinkObject:
+    def __init__(self, source, target, metadata=None, directed=False):
+        self.id = uuid.uuid4()
+        self.source = source
+        self.target = target
+        self.metadata = metadata or {}
+        self.directed = directed
+
+class CellObject:
+    def __init__(self, coords, parent):
+        self.coords = tuple(coords)
+        self.value = None
+        self.parent = parent
+        self.links = []
+
+class MatrixObject:
+    def __init__(self, shape, dense=False):
+        self.id = uuid.uuid4()
+        self.shape = tuple(shape)
+        self.ndim = len(shape)
+        self.is_dense = dense
+        self.cells = {}
+
+    def _check(self, coords):
+        if len(coords) != self.ndim:
+            raise Exception("Matrix dimension mismatch")
+        for i, c in enumerate(coords):
+            if c < 0 or c >= self.shape[i]:
+                raise Exception("Matrix index out of bounds")
+
+    def _get_cell(self, coords, create=False):
+        coords = tuple(coords)
+        if coords in self.cells:
+            return self.cells[coords]
+        if not create:
+            return None
+        cell = CellObject(coords, self)
+        self.cells[coords] = cell
+        return cell
+
+    def set(self, coords, value):
+        self._check(coords)
+        cell = self._get_cell(coords, True)
+        cell.value = value
+        return value
+
+    def get(self, coords):
+        self._check(coords)
+        cell = self._get_cell(coords)
+        return None if cell is None else cell.value
+
+    def link(self, coordsA, other, coordsB, metadata=None, directed=False):
+        cA = self._get_cell(coordsA, True)
+        cB = other._get_cell(coordsB, True)
+
+        link = LinkObject(cA, cB, metadata, directed)
+        cA.links.append(link)
+
+        if not directed:
+            reverse = LinkObject(cB, cA, metadata, directed)
+            cB.links.append(reverse)
+
+        return link
+
+    def traverse(self, start_coords, strategy="dfs"):
+        start = self._get_cell(start_coords)
+        if not start:
+            return []
+
+        visited = set()
+        result = []
+
+        if strategy == "bfs":
+            queue = deque([start])
+            while queue:
+                node = queue.popleft()
+                key = (node.parent.id, node.coords)
+                if key in visited:
+                    continue
+                visited.add(key)
+                result.append(node)
+
+                for link in node.links:
+                    queue.append(link.target)
+        else:
+            stack = [start]
+            while stack:
+                node = stack.pop()
+                key = (node.parent.id, node.coords)
+                if key in visited:
+                    continue
+                visited.add(key)
+                result.append(node)
+
+                for link in node.links:
+                    stack.append(link.target)
+
+        return result
+
+    def detect_cycle(self, start_coords):
+        start = self._get_cell(start_coords)
+        if not start:
+            return False
+
+        visited = set()
+        stack = set()
+
+        def dfs(node):
+            key = (node.parent.id, node.coords)
+            if key in stack:
+                return True
+            if key in visited:
+                return False
+
+            visited.add(key)
+            stack.add(key)
+
+            for link in node.links:
+                if dfs(link.target):
+                    return True
+
+            stack.remove(key)
+            return False
+
+        return dfs(start)
+
+
+

@@ -23,7 +23,7 @@ from module_proxy import ModuleProxy
 
 from bound_method import BoundMethod
 #from heart.heart import Heart
-DEBUG = False  # mettre True pour traces détaillées
+#DEBUG = False  # mettre True pour traces détaillées
 class Interpreter:
     def __init__(self):
         self.global_env = Environment()
@@ -2292,3 +2292,4 @@ class BreakException(Exception):
 
 class ContinueException(Exception):
     pass
+
