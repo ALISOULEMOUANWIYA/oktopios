@@ -111,7 +111,8 @@ def cmd_keywords():
 
 def cmd_repl():
     print(Fore.CYAN + "🐙 Bienvenue dans le REPL d'Oktopios — tapez 'exit' pour quitter." + Style.RESET_ALL)
-    interpreter = Interpreter()
+    print(Fore.CYAN + "   Tapez 'exit' ou 'quit' pour quitter." + Style.RESET_ALL)
+    interpreter = Interpreter()  # Un seul interpréteur persistant
     while True:
         try:
             line = input(Fore.YELLOW + "okp> " + Style.RESET_ALL)
@@ -121,7 +122,14 @@ def cmd_repl():
             if not line.strip():
                 continue
             tokens = list(tokenize(line))
-            ast = Parser(tokens).parse()
+            # Transmettre les modules déjà injectés au parser
+            parser = Parser(tokens)
+            parser.modules_loaded = set(interpreter.modules_loaded)
+            if hasattr(interpreter, 'modules_loaded_alias'):
+                for alias in interpreter.modules_loaded_alias.values():
+                    if alias:
+                        parser.modules_alias.add(alias)
+            ast = parser.parse()
             interpreter.interpret(ast)
         except KeyboardInterrupt:
             print(Fore.RED + "\nInterruption (Ctrl+C). Sortie du REPL." + Style.RESET_ALL)
