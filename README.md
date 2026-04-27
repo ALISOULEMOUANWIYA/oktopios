@@ -4,7 +4,7 @@
 
 ---
 
-## Installation
+## Installation Général 
 
 ```bash
 pip install oktopios
@@ -42,6 +42,12 @@ okp "print('Bonjour Oktopios !')"
 ---
 ## 🐧 Linux (Ubuntu, Debian, Fedora, Arch...)
 
+### Méthode 1 — pip
+```bash
+pip install oktopios
+```
+
+### Méthode 2 
 ```bash
 bash installers/linux/install.sh
 source ~/.bashrc
@@ -51,7 +57,12 @@ okp --version
 ---
 
 ## 🍎 macOS
+### Méthode 1 — pip
+```bash
+pip install oktopios
+```
 
+### Méthode 2 
 ```bash
 bash installers/macos/install.sh
 source ~/.zshrc
@@ -64,8 +75,12 @@ okp --version
 
 **Installer Termux** depuis [F-Droid](https://f-droid.org/packages/com.termux/)
 *(pas depuis le Play Store — version obsolète)*
-
 Puis dans Termux :
+### Méthode 1 — pip
+```bash
+pip install oktopios
+```
+### Méthode 2
 ```bash
 bash installers/android-termux/termux-install.sh
 okp --version
@@ -87,6 +102,13 @@ cd oktopios && bash installers/android-termux/termux-install.sh
 iSH émule un terminal Linux Alpine sur iOS.
 
 Puis dans iSH :
+### Méthode 1 — pip
+```sh
+apk update && apk add python3 py3-pip
+pip install oktopios
+```
+
+### Méthode 2
 ```sh
 # Mise à jour Alpine
 apk update && apk add git python3 py3-pip
