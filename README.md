@@ -145,7 +145,7 @@ rm -rf ~/.oktopios $PREFIX/bin/okp
 rm -rf ~/.oktopios /usr/local/bin/okp
 ```
 ---
-## Syntaxe de base
+## Syntaxe de base d'Oktopios 🐙
 
 ```okp
 // Variables et constantes
