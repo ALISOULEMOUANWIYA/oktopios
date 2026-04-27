@@ -124,9 +124,6 @@ okp --version
 
 ---
 
-```
-pip install -e .
-```
 
 ## Utilisation rapide
 
