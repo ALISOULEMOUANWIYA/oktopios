@@ -41,14 +41,14 @@ Homepage = "https://github.com/ALISOULEMOUANWIYA/oktopios"
 Issues   = "https://github.com/ALISOULEMOUANWIYA/oktopios/issues"
 
 [project.scripts]
-okp = "oktopios.vm.main:main"
+okp = "vm.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["oktopios*"]
+include = ["vm*"]
 
 [tool.setuptools.package-data]
-"oktopios" = ["metadata/*.txt", "metadata/*.md", "vm/modules/*.okp"]
+"" = ["metadata/*.txt", "metadata/*.md", "vm/modules/*.okp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
