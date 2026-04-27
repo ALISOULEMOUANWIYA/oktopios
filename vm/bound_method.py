@@ -1,4 +1,4 @@
-from environment import Environment
+from .environment import Environment
 
 class BoundMethod:
     def __init__(self, instance, method):

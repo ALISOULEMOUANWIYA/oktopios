@@ -1,5 +1,5 @@
 #dans ast_nodes.py
-from lexer import Token
+from .lexer import Token
 from typing import List, Union, Optional, Dict, Any
 from dataclasses import dataclass, field
 #--------------------
@@ -282,7 +282,7 @@ class ForEachStmt(Stmt):
 
 @dataclass
 class RangeExpr(Expr):
-    from token_type import TokenType
+    from .token_type import TokenType
     def __init__(self, start, end, operator=TokenType.RANGE, step=None):
         self.start = start
         self.end = end

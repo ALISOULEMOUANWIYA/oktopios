@@ -1,5 +1,5 @@
 from colorama import Fore, Style  # Pour affichage coloré des erreurs (si utilisé ailleurs)
-from environment import Environment
+from .environment import Environment
 
 class LambdaFunction:
     def __init__(self, expr, closure):

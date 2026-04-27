@@ -1,7 +1,7 @@
 #lexer.py
 from collections import namedtuple
 import re
-from token_type import TokenType
+from .token_type import TokenType
 
 
 

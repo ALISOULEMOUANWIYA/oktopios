@@ -15,10 +15,10 @@ import json
 from colorama import Fore, Style, init as colorama_init
 from tabulate import tabulate
 
-from lexer import tokenize, TYPE_ALIASES
-from parser import Parser
-from interpreter import Interpreter
-from native_funcs import NativeFuncs
+from .lexer import tokenize, TYPE_ALIASES
+from .parser import Parser
+from .interpreter import Interpreter
+from .native_funcs import NativeFuncs
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 

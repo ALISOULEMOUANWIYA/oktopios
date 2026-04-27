@@ -1,5 +1,5 @@
-from runtime_instance import RuntimeInstance_for_enum
-from user_function import UserFunction
+from .runtime_instance import RuntimeInstance_for_enum
+from .user_function import UserFunction
 
 class RuntimeEnum:
     def __init__(self, name, values, fields=None, methods=None, interpreter=None):

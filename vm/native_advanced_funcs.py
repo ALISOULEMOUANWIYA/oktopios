@@ -2,8 +2,8 @@
 # native_advanced_funcs.py
 # =====================================================
 
-from native_advanced_collections import *
-from matrix import Matrix
+from .native_advanced_collections import *
+from .matrix import Matrix
 
 # =====================================================
 # --- Fonctions natives pour Oktopios (collections avancées) ---

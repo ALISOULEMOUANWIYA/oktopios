@@ -1,5 +1,5 @@
-from user_function import UserFunction
-from ast_nodes import Field, VarDecl
+from .user_function import UserFunction
+from .ast_nodes import Field, VarDecl
 
 class RuntimeClass:
     def __init__(self, class_decl, interpreter):

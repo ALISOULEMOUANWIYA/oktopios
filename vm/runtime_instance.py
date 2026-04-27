@@ -1,12 +1,12 @@
 # runtime_instance.py
 import copy
-from user_function import UserFunction
-from return_Value import ReturnValue
+from .user_function import UserFunction
+from .return_Value import ReturnValue
 from collections import Counter
-from ast_nodes import Field, FieldMethode
+from .ast_nodes import Field, FieldMethode
 from colorama import Fore, Style
-from runtime_object_instance import RuntimeObjectInstance
-from ast_nodes import OktopiosMap
+from .runtime_object_instance import RuntimeObjectInstance
+from .ast_nodes import OktopiosMap
 
 DEBUG = False  # mettre True pour traces détaillées
 

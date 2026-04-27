@@ -1,10 +1,10 @@
-from native_collections import (
+from .native_collections import (
     ListInstance,
     TupleInstance,
     MapInstance,
     SetInstance
 )
-from native_advanced_collections import (
+from .native_advanced_collections import (
     LinkedListInstance,
     TreeSetInstance,
     LinkedHashSetInstance,

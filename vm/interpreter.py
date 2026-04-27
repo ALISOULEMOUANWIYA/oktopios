@@ -1,27 +1,27 @@
 import os
 
-from ast_nodes import *
-from parser import FuncCall
-from token_type import TokenType
+from .ast_nodes import *
+from .parser import FuncCall
+from .token_type import TokenType
 from colorama import Fore, Back, Style
-from environment import Environment
-from lambda_function import LambdaFunction
-from return_Value import ReturnValue
-from user_function import UserFunction
-from runtime_instance import RuntimeInstance, RuntimeInstance_for_enum
-from runtime_class import RuntimeClass
-from runtime_enum import RuntimeEnum
-from native_constructeur import NativeCollectionsConstruct as constuct
-from native_funcs import NativeFuncs as Funcs
-from native_collections import NativeCollectionsFuncs as ColFuncs
-from native_advanced_funcs import NativeAdvancedFuncs as AdvFuncs
-from lexer import tokenize
-from parser import Parser
-from module_proxy import ModuleProxy
+from .environment import Environment
+from .lambda_function import LambdaFunction
+from .return_Value import ReturnValue
+from .user_function import UserFunction
+from .runtime_instance import RuntimeInstance, RuntimeInstance_for_enum
+from .runtime_class import RuntimeClass
+from .runtime_enum import RuntimeEnum
+from .native_constructeur import NativeCollectionsConstruct as constuct
+from .native_funcs import NativeFuncs as Funcs
+from .native_collections import NativeCollectionsFuncs as ColFuncs
+from .native_advanced_funcs import NativeAdvancedFuncs as AdvFuncs
+from .lexer import tokenize
+from .parser import Parser
+from .module_proxy import ModuleProxy
 
 
 
-from bound_method import BoundMethod
+from .bound_method import BoundMethod
 #from heart.heart import Heart
 #DEBUG = False  # mettre True pour traces détaillées
 class Interpreter:

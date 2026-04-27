@@ -1,7 +1,6 @@
 from setuptools import setup, find_packages
 import os
 
-# Lire le README
 long_description = ""
 if os.path.exists("README.md"):
     with open("README.md", "r", encoding="utf-8") as f:
@@ -9,14 +8,14 @@ if os.path.exists("README.md"):
 
 setup(
     name="oktopios",
-    version="0.0.1",
-    description="Oktopios — un langage de programmation moderne et expressif 🐙",
+    version="0.0.4",
+    description="Oktopios — un langage de programmation moderne et expressif",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Mouanwiya Ali Soule",
     license="MIT",
     python_requires=">=3.10",
-    packages=find_packages(),
+    packages=find_packages(include=["vm", "vm.*"]),
     install_requires=[
         "colorama>=0.4.6",
         "tabulate>=0.9.0",
@@ -29,6 +28,6 @@ setup(
     },
     include_package_data=True,
     package_data={
-        "": ["metadata/*.txt", "metadata/*.md", "vm/modules/*.okp"],
+        "vm": ["modules/*.okp", "heart/*.py"],
     },
 )

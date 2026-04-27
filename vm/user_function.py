@@ -1,7 +1,7 @@
-from environment import Environment
-from return_Value import ReturnValue
+from .environment import Environment
+from .return_Value import ReturnValue
 from colorama import Fore, Style
-from ast_nodes import FunDecl  # ou l'import adapté
+from .ast_nodes import FunDecl  # ou l'import adapté
 
 
 class UserFunction:

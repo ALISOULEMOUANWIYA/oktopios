@@ -1,11 +1,11 @@
 import token
 
 
-from token_type import TokenType
-from ast_nodes import *
+from .token_type import TokenType
+from .ast_nodes import *
 from colorama import Fore, Style
-from parse_error import ParseError
-from symbole_table import SymbolTable
+from .parse_error import ParseError
+from .symbole_table import SymbolTable
 
 # Dans parser.py (ou accessible globalement)
 INJECTED_MODULES = set()  # ex: {"math", "io", "file"}
