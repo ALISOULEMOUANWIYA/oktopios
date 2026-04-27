@@ -34,6 +34,20 @@ header
 
 # 1. Vérifier Python 3.10+
 step 1 5 "Vérification de Python..."
+# Installer pip si absent
+if command -v python3 &>/dev/null && ! python3 -m pip --version &>/dev/null; then
+    info "pip absent — installation..."
+    if command -v apt-get &>/dev/null; then
+        sudo apt-get install -y python3-pip -q 2>/dev/null || python3 -m ensurepip --upgrade 2>/dev/null || true
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y python3-pip -q 2>/dev/null || true
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -S --noconfirm python-pip -q 2>/dev/null || true
+    else
+        python3 -m ensurepip --upgrade 2>/dev/null || true
+    fi
+fi
+
 if ! command -v python3 &>/dev/null; then
     info "Python3 non trouvé. Tentative d'installation..."
     if command -v apt-get &>/dev/null; then
@@ -65,7 +79,18 @@ ok "Dossiers créés dans $INSTALL_DIR"
 # 3. Copier les fichiers
 step 3 5 "Copie des fichiers Oktopios..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+INSTALLERS_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="$(dirname "$INSTALLERS_DIR")"
+# Fallback si lancé depuis la racine du projet
+if [ ! -f "$PROJECT_DIR/vm/main.py" ] && [ -f "vm/main.py" ]; then PROJECT_DIR="$(pwd)"; fi
+# Fallback 2 : chercher en remontant depuis le CWD
+if [ ! -f "$PROJECT_DIR/vm/main.py" ]; then
+    SEARCH="$(pwd)"
+    for _ in 1 2 3 4; do
+        if [ -f "$SEARCH/vm/main.py" ]; then PROJECT_DIR="$SEARCH"; break; fi
+        SEARCH="$(dirname "$SEARCH")"
+    done
+fi
 
 if [ -f "$PROJECT_DIR/vm/main.py" ]; then
     cp -r "$PROJECT_DIR"/. "$INSTALL_DIR/"
