@@ -63,12 +63,15 @@ NativeAdvancedFuncs = {
     },
     # --- Matrix ---
     "matrix": {
-        "new": lambda shape, dense=False: MatrixObject(shape, dense),
+        "new": lambda shape, dense=False: Matrix(shape) if dense else MatrixObject(shape, False),
         "set": lambda m, coords, val: m.set(coords, val),
         "get": lambda m, coords: m.get(coords),
         "link": lambda m, coordsA, other, coordsB, meta=None, directed=False: m.link(coordsA, other, coordsB, meta, directed),
         "traverse": lambda m, coords, strategy="dfs": m.traverse(coords, strategy),
         "detect_cycle": lambda m, coords: m.detect_cycle(coords),
+        "add": lambda A, B: Matrix.add(A, B),
+        "tensor": lambda A, B: Matrix.tensor(A, B),
+        "contract": lambda A, B, dA, dB: Matrix.contract(A, B, dA, dB),
     },
 }
 

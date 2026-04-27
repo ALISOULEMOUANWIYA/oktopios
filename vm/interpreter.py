@@ -1300,8 +1300,8 @@ class Interpreter:
         else:
             # constructeur par défaut (callable Python simple)
             def default_constructor(*_args, **_kwargs):
-                if DEBUG:
-                    print(f"[DEBUG] Constructeur par défaut exécuté pour {getattr(class_decl, 'name', '<anon>')}")
+                #if DEBUG:
+                #    print(f"[DEBUG] Constructeur par défaut exécuté pour {getattr(class_decl, 'name', '<anon>')}")
                 return None
 
             instance.fieldsMeth["__construct"] = default_constructor
@@ -1312,8 +1312,8 @@ class Interpreter:
             instance.fieldsMeth["__destruct"] = bound_dtor
         else:
             def default_destructor():
-                if DEBUG:
-                    print(f"[DEBUG] Destructeur par défaut exécuté pour {getattr(class_decl, 'name', '<anon>')}")
+                #if DEBUG:
+                #    print(f"[DEBUG] Destructeur par défaut exécuté pour {getattr(class_decl, 'name', '<anon>')}")
                 # simulation de libération mémoire
                 if hasattr(instance, "fields"):
                     instance.fields.clear()

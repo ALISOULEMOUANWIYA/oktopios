@@ -13,7 +13,7 @@ pip install oktopios
 Ou depuis les sources :
 
 ```bash
-git clone https://github.com/mouanwiya/oktopios
+git clone https://github.com/ALISOULEMOUANWIYA/oktopios
 cd oktopios
 pip install -e .
 ```
@@ -115,3 +115,4 @@ print(String.upper("hello"))   // HELLO
 ## Licence
 
 MIT © Mouanwiya Ali Soule
+

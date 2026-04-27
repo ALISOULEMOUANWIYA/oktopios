@@ -56,37 +56,34 @@ Write-OK "Dossiers crees dans $INSTALL_DIR"
 
 # 3. Copier les fichiers du projet
 Write-Step 3 5 "Copie des fichiers Oktopios..."
-$SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
-$PROJECT_DIR = Split-Path -Parent $SCRIPT_DIR
+$SCRIPT_DIR  = Split-Path -Parent $MyInvocation.MyCommand.Path   # installers\windows
+$INSTALLERS  = Split-Path -Parent $SCRIPT_DIR                       # installers
+$PROJECT_DIR = Split-Path -Parent $INSTALLERS                       # racine du projet
 
 if (Test-Path "$PROJECT_DIR\vm\main.py") {
     Copy-Item -Recurse -Force "$PROJECT_DIR\*" "$INSTALL_DIR\oktopios\" -ErrorAction SilentlyContinue
     Write-OK "Fichiers copies"
-} else {
-    # Fallback: pip install
-    Write-Host "  [INFO] Installation via pip..." -ForegroundColor Cyan
-    pip install oktopios --quiet
-    if ($LASTEXITCODE -ne 0) { Write-Fail "pip install oktopios echoue" }
-    Write-OK "Installe via pip"
 
-    # Créer wrapper pip-based
+    # 4. Installer les dépendances
+    Write-Step 4 5 "Installation des dependances..."
+    pip install colorama tabulate psutil --quiet
+    if ($LASTEXITCODE -ne 0) { Write-Fail "Installation des dependances echouee" }
+    Write-OK "colorama, tabulate, psutil installes"
+
+    # Créer wrapper okp.bat
+    $MAIN_PATH = "$INSTALL_DIR\oktopios\vm\main.py"
+    $wrapper = "@echo off`npython `"$MAIN_PATH`" %*"
+    Set-Content -Path "$BIN_DIR\okp.bat" -Value $wrapper -Encoding ASCII
+
+} else {
+    Write-Step 4 5 "Installation via pip (projet introuvable localement)..."
+    pip install colorama tabulate psutil --quiet
+    Write-OK "Dependances installees"
+
     $wrapper = "@echo off`npython -m oktopios %*"
     Set-Content -Path "$BIN_DIR\okp.bat" -Value $wrapper -Encoding ASCII
-    goto done
+    Write-OK "Lanceur okp cree (pip mode)"
 }
-
-# 4. Installer les dépendances
-Write-Step 4 5 "Installation des dependances..."
-pip install colorama tabulate psutil --quiet
-if ($LASTEXITCODE -ne 0) { Write-Fail "Installation des dependances echouee" }
-Write-OK "colorama, tabulate, psutil installes"
-
-# Créer wrapper okp.bat
-$MAIN_PATH = "$INSTALL_DIR\oktopios\vm\main.py"
-$wrapper = "@echo off`npython `"$MAIN_PATH`" %*"
-Set-Content -Path "$BIN_DIR\okp.bat" -Value $wrapper -Encoding ASCII
-
-:done
 # 5. Ajouter au PATH
 Write-Step 5 5 "Mise a jour du PATH..."
 $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")

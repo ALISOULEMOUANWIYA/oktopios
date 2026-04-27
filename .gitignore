@@ -9,10 +9,12 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+installers/
 .eggs/
 
 # Environnements virtuels
 .venv/
+myenv/
 venv/
 env/
 .env
