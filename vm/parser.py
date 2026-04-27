@@ -680,8 +680,8 @@ class Parser:
 
             self.consume(TokenType.RPAREN, "Attendu ')' pour fermer l'instanciation")
             return NewInstanceExpr(class_name_token.value, args)
-        #elif self.match(TokenType.FUN):
-        #    return self.fun_expr()
+        elif self.match(TokenType.FUN):
+            return self.fun_expr()
         elif self.match(TokenType.LAMBDA):
             return self.lambda_expr()
         elif self.match(TokenType.THIS):
