@@ -84,6 +84,25 @@ print(Math.sqrt(16))           // 4.0
 print(String.upper("hello"))   // HELLO
 ```
 
+## matrix.new([lignes, colonnes]) → MatrixObject (sparse) Pour les graphes, réseaux, liens entre cellules, traversée BFS/DFS :
+```
+inject matrix
+var m = matrix.new([3, 3])
+matrix.set(m, [0, 0], 42)
+matrix.link(m, [0, 0], m, [1, 1])
+var chemin = matrix.traverse(m, [0, 0], "bfs")
+```
+
+## matrix.new([lignes, colonnes], true) → Matrix (dense) Pour les calculs mathématiques, addition, produit tensoriel, IA :
+```
+inject matrix
+var A = matrix.new([2, 2], true)
+var B = matrix.new([2, 2], true)
+matrix.set(A, [0, 0], 1)
+var C = matrix.add(A, B)
+var T = matrix.tensor(A, B)
+var R = matrix.contract(A, B, 0, 1)
+```
 ## Fonctionnalités
 
 - ✅ Variables typées (`var`, `val`)
