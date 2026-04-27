@@ -48,7 +48,7 @@ where = ["."]
 include = ["vm*"]
 
 [tool.setuptools.package-data]
-"" = ["metadata/*.txt", "metadata/*.md", "vm/modules/*.okp"]
+"*" = ["metadata/*.txt", "metadata/*.md", "vm/modules/*.okp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
