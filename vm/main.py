@@ -104,7 +104,7 @@ def cmd_keywords():
     if kw:
         print(Fore.YELLOW + "Mots-clés Oktopios :\n" + kw + Style.RESET_ALL)
     else:
-        from lexer import KEYWORDS
+        from .lexer import KEYWORDS
         mots = sorted(KEYWORDS.keys())
         print(Fore.YELLOW + "Mots-clés Oktopios :\n" + "  " + "\n  ".join(mots) + Style.RESET_ALL)
 

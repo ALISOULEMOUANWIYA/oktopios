@@ -102,7 +102,7 @@ class Instance:
         }
 
         # 🔹 Méthodes liées à l'instance
-        from user_function import UserFunction
+        from .user_function import UserFunction
         self.methods = {}
         for method_decl in getattr(klass, "methods", []):
             self.methods[method_decl.name] = UserFunction(

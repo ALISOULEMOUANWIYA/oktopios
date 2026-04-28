@@ -62,8 +62,7 @@ NativeAdvancedFuncs = {
         "itNext": lambda it: it.next(),
     },
     # --- Matrix ---
-    "matrix": {
-        "new": lambda shape, dense=False: Matrix(shape) if dense else MatrixObject(shape, False),
+    "Matrix": {
         "set": lambda m, coords, val: m.set(coords, val),
         "get": lambda m, coords: m.get(coords),
         "link": lambda m, coordsA, other, coordsB, meta=None, directed=False: m.link(coordsA, other, coordsB, meta, directed),

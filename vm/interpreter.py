@@ -478,10 +478,10 @@ class Interpreter:
             increment = self.evaluate(expr.value)
             op_type = expr.operator.type
             #print("Debug 3: ", current_value, increment, op_type)
-            from native_collections import NativeCollectionsFuncs as NCF
-            from native_advanced_funcs import NativeAdvancedFuncs as NAF
-            from native_collections import ListInstance, TupleInstance, MapInstance, SetInstance
-            from native_advanced_collections import (
+            from .native_collections import NativeCollectionsFuncs as NCF
+            from .native_advanced_funcs import NativeAdvancedFuncs as NAF
+            from .native_collections import ListInstance, TupleInstance, MapInstance, SetInstance
+            from .native_advanced_collections import (
                 LinkedListInstance,
                 TreeSetInstance,
                 LinkedHashSetInstance,
@@ -1266,7 +1266,7 @@ class Interpreter:
         # --- Helper : créer/binder un UserFunction depuis FunDecl ou depuis RuntimeClass.methods entry
         def make_bound_userfunction(maybe_decl_or_userfunc):
             # Si c'est déjà un UserFunction (ex: RuntimeClass.methods stocke UserFunction), binder si besoin
-            from user_function import UserFunction
+            from .user_function import UserFunction
             if isinstance(maybe_decl_or_userfunc, UserFunction):
                 # s'assurer qu'il est bound à l'instance (UserFunction garde instance dans son champ)
                 # si instance déjà présent, on le retourne ; sinon on crée un nouveau bound
@@ -2044,7 +2044,7 @@ class Interpreter:
 
     def visit_UpadateDictLiteral(self, expr):
         result = {}
-        from native_collections import NativeCollectionsFuncs as NCF
+        from .native_collections import NativeCollectionsFuncs as NCF
         target = self.env.get(expr.target.name)  # ✅ récupère la vraie map
         for key_expr, val_expr in expr.updates.pairs:
             key = self.evaluate(key_expr)

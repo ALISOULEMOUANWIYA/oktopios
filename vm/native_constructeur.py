@@ -8,8 +8,10 @@ from .native_advanced_collections import (
     LinkedListInstance,
     TreeSetInstance,
     LinkedHashSetInstance,
-    TreeMapInstance
+    TreeMapInstance,
+    MatrixObject
 )
+from .matrix import Matrix
 # -------------------------------
 # constructeur natives
 # -------------------------------
@@ -29,6 +31,7 @@ NativeCollectionsConstruct = {
     "TreeSet": lambda init=None: TreeSetInstance(list(init) if init is not None else []),
     "LinkedHashSet": lambda init=None: LinkedHashSetInstance(list(init) if init is not None else []),
     "TreeMap": lambda init=None: TreeMapInstance(init),
+    "Matrix": lambda shape, dense=False: Matrix(shape) if dense else MatrixObject(shape, False),
 
     # =====================================================
     # --- Constructeurs de collections natives tipique python---

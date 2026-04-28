@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "oktopios"
-version = "0.0.4"
+version = "0.0.8"
 description = "Oktopios — un langage de programmation moderne et expressif"
 readme = "README.md"
 license = { file = "LICENSE" }
