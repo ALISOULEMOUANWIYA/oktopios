@@ -218,7 +218,7 @@ print(String.upper("hello"))   // HELLO
 ## matrix([lignes, colonnes]) → MatrixObject (sparse) Pour les graphes, réseaux, liens entre cellules, traversée BFS/DFS :
 ```okp
 inject matrix
-var m = matrix.new([3, 3])
+var m = matrix([3, 3])
 matrix.set(m, [0, 0], 42)
 matrix.link(m, [0, 0], m, [1, 1])
 var chemin = matrix.traverse(m, [0, 0], "bfs")
@@ -228,7 +228,7 @@ var chemin = matrix.traverse(m, [0, 0], "bfs")
 ```okp
 inject Matrix
 var A = Matrix([2, 2], true)
-var B = Matrix.new([2, 2], true)
+var B = Matrix([2, 2], true)
 Matrix.set(A, [0, 0], 1)
 var C = Matrix.add(A, B)
 var T = Matrix.tensor(A, B)
