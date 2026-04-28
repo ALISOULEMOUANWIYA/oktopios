@@ -215,8 +215,8 @@ print(Math.sqrt(16))           // 4.0
 print(String.upper("hello"))   // HELLO
 ```
 
-## matrix.new([lignes, colonnes]) → MatrixObject (sparse) Pour les graphes, réseaux, liens entre cellules, traversée BFS/DFS :
-```
+## matrix([lignes, colonnes]) → MatrixObject (sparse) Pour les graphes, réseaux, liens entre cellules, traversée BFS/DFS :
+```okp
 inject matrix
 var m = matrix.new([3, 3])
 matrix.set(m, [0, 0], 42)
@@ -224,15 +224,135 @@ matrix.link(m, [0, 0], m, [1, 1])
 var chemin = matrix.traverse(m, [0, 0], "bfs")
 ```
 
-## matrix.new([lignes, colonnes], true) → Matrix (dense) Pour les calculs mathématiques, addition, produit tensoriel, IA :
+## matrix([lignes, colonnes], true) → Matrix (dense) Pour les calculs mathématiques, addition, produit tensoriel, IA :
+```okp
+inject Matrix
+var A = Matrix([2, 2], true)
+var B = Matrix.new([2, 2], true)
+Matrix.set(A, [0, 0], 1)
+var C = Matrix.add(A, B)
+var T = Matrix.tensor(A, B)
+var R = Matrix.contract(A, B, 0, 1)
 ```
-inject matrix
-var A = matrix.new([2, 2], true)
-var B = matrix.new([2, 2], true)
-matrix.set(A, [0, 0], 1)
-var C = matrix.add(A, B)
-var T = matrix.tensor(A, B)
-var R = matrix.contract(A, B, 0, 1)
+
+## Exemple :
+```okp
+val doubler = lambda(x) => x * 2
+val composer = lambda(f, g) => lambda(x) => f(g(x))
+val doubler_apres_incr = composer(doubler, lambda(x) => x + 1)
+print(doubler_apres_incr(4))  // 10
+
+inject LinkedList
+inject TreeSet
+inject LinkedHashSet
+inject TreeMap
+
+var ll = LinkedList([1, 2])
+var ts = TreeSet([2, 3])
+var lhs = LinkedHashSet([10, 20])
+var tm = TreeMap({"A": 1, "B": 2})
+
+// =====================================================
+// RACCOURCIS D’OPÉRATEURS POUR LES COLLECTIONS NATIVES
+// =====================================================
+ll += [3, 4]
+ts += [0, 1]
+lhs += [30, 23]
+tm += {"C": 1, "D": 2}
+
+// =====================================================
+// TEST DES FONCTIONS NATIVES DIRECTES
+// =====================================================
+// --- LinkedList ---
+LinkedList.llAdd(ll, 99)
+LinkedList.llRemove(ll, 2)
+var llList = LinkedList.llList(ll)
+
+// --- TreeSet ---
+TreeSet.tsAdd(ts, 42)
+TreeSet.tsRemove(ts, 0)
+var tsList = TreeSet.tsList(ts)
+
+// --- LinkedHashSet ---
+LinkedHashSet.lhsAdd(lhs, 77)
+LinkedHashSet.lhsRemove(lhs, 23)
+var lhsList = LinkedHashSet.lhsList(lhs)
+
+// --- TreeMap ---
+TreeMap.tmPut(tm, "E", 5)
+TreeMap.tmRemove(tm, "A")
+var tmKeys = TreeMap.tmKeys(tm)
+var tmVals = TreeMap.tmVals(tm)
+
+// =====================================================
+// AFFICHAGE FINAL DES RÉSULTATS
+// =====================================================
+print("LinkedList → " + llList)
+print("TreeSet → " + tsList)
+print("LinkedHashSet → " + lhsList)
+print("TreeMap Keys → " + tmKeys)
+print("TreeMap Values → " + tmVals)
+
+
+inject Math
+print(Math.sqrt(9))
+
+inject Matrix
+var A = Matrix([2, 2], true)
+var B = Matrix([2, 2], true)
+Matrix.set(A, [0, 0], 1)
+var C = Matrix.add(A, B)
+var T = Matrix.tensor(A, B)
+var R = Matrix.contract(A, B, 0, 1)
+
+var m = Matrix([3, 3])
+Matrix.set(m, [0, 0], 42)
+Matrix.link(m, [0, 0], m, [1, 1])
+var chemin = Matrix.traverse(m, [0, 0], "bfs")
+
+print(C)
+print(T)
+print(R)
+print(chemin)
+```
+
+## Résultat
+```
+10
+LinkedList : [1, 3, 4, 99]
+TreeSet : [1, 2, 3, 42]
+LinkedHashSet : [10, 20, 30, 77]
+TreeMap Keys : ['B', 'C', 'D', 'E']
+TreeMap Values : [2, 1, 2, 5]
+3.0
+Matrix[2, 2]:
+  (0, 0) -> 6
+  (0, 1) -> 8
+  (1, 0) -> 10
+  (1, 1) -> 12
+Matrix[2, 2, 2, 2]:
+  (0, 0, 0, 0) -> 5
+  (0, 0, 0, 1) -> 6
+  (0, 0, 1, 0) -> 7
+  (0, 0, 1, 1) -> 8
+  (0, 1, 0, 0) -> 10
+  (0, 1, 0, 1) -> 12
+  (0, 1, 1, 0) -> 14
+  (0, 1, 1, 1) -> 16
+  (1, 0, 0, 0) -> 15
+  (1, 0, 0, 1) -> 18
+  (1, 0, 1, 0) -> 21
+  (1, 0, 1, 1) -> 24
+  (1, 1, 0, 0) -> 20
+  (1, 1, 0, 1) -> 24
+  (1, 1, 1, 0) -> 28
+  (1, 1, 1, 1) -> 32
+Matrix[2, 2]:
+  (0, 0) -> 23
+  (0, 1) -> 31
+  (1, 0) -> 34
+  (1, 1) -> 46
+[Cell([0, 0], val=42), Cell([1, 1], val=10)]
 ```
 ## Fonctionnalités
 
