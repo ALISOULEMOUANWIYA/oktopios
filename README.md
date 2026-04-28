@@ -35,6 +35,7 @@ pip install oktopios
 
 Après installation, ouvrez un **nouveau** PowerShell :
 ```powershell
+$env:PATH += ";$env:APPDATA\Python\Python312\Scripts"
 okp --version
 okp "print('Bonjour Oktopios !')"
 ```
