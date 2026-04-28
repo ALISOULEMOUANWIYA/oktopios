@@ -8,7 +8,7 @@ if os.path.exists("README.md"):
 
 setup(
     name="oktopios",
-    version="0.0.8",
+    version="0.0.10",
     description="Oktopios — un langage de programmation moderne et expressif",
     long_description=long_description,
     long_description_content_type="text/markdown",
