@@ -8,7 +8,7 @@
 
 ```bash
 pip install oktopios          # s'exécute automatiquement
-okp-setup                     # pour forcer si besoin l'appartiion de l'icons oktopios
+okp-setup                     # pour forcer si besoin l'apparition de l'icons oktopios
 ```
 
 Ou depuis les sources :
