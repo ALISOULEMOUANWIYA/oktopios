@@ -17,7 +17,7 @@ Ou depuis les sources :
 git clone https://github.com/ALISOULEMOUANWIYA/oktopios
 cd oktopios
 ```
-### puis en suite Choisir l'installation selon votre plate-form
+### puis en suite Choisir l'installation selon votre plateform
 ## 🪟 Windows
 
 ### Méthode 1 — Script automatique (recommandé)
