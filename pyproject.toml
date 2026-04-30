@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "oktopios"
-version = "0.0.10"
+version = "0.0.11"
 description = "Oktopios — un langage de programmation moderne et expressif"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -19,10 +19,11 @@ dependencies = [
 
 [project.scripts]
 okp = "vm.main:main"
+okp-setup = "vm.post_install:run_post_install"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["vm*"]
 
 [tool.setuptools.package-data]
-"vm" = ["modules/*.okp", "heart/*.py"]
+"vm" = ["modules/*.okp", "heart/*.py", "assets/icons/*.png", "assets/icons/*.ico"]

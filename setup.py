@@ -1,5 +1,31 @@
-from setuptools import setup, find_packages
 import os
+import sys
+import subprocess
+from setuptools import setup, find_packages
+from setuptools.command.install import install
+from setuptools.command.develop import develop
+
+
+def run_post_install():
+    """Appeler post_install.py après l'installation."""
+    try:
+        import vm.post_install as pi
+        pi.run_post_install()
+    except Exception as e:
+        print(f"  ⚠️  Post-install optionnel ignoré: {e}")
+
+
+class PostInstallCommand(install):
+    def run(self):
+        install.run(self)
+        run_post_install()
+
+
+class PostDevelopCommand(develop):
+    def run(self):
+        develop.run(self)
+        run_post_install()
+
 
 long_description = ""
 if os.path.exists("README.md"):
@@ -8,8 +34,8 @@ if os.path.exists("README.md"):
 
 setup(
     name="oktopios",
-    version="0.0.10",
-    description="Oktopios — un langage de programmation moderne et expressif",
+    version="0.0.11",
+    description="Oktopios — un langage de programmation moderne et expressif 🐙",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Mouanwiya Ali Soule",
@@ -24,10 +50,20 @@ setup(
     entry_points={
         "console_scripts": [
             "okp=vm.main:main",
+            "okp-setup=vm.post_install:run_post_install",
         ],
+    },
+    cmdclass={
+        "install": PostInstallCommand,
+        "develop": PostDevelopCommand,
     },
     include_package_data=True,
     package_data={
-        "vm": ["modules/*.okp", "heart/*.py"],
+        "vm": [
+            "modules/*.okp",
+            "heart/*.py",
+            "assets/icons/*.png",
+            "assets/icons/*.ico",
+        ],
     },
 )

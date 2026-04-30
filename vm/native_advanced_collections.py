@@ -193,12 +193,6 @@ class CellObject:
         self.parent = parent
         self.links = []
 
-    def __repr__(self):
-        return f"Cell({list(self.coords)}, val={self.value})"
-
-    def __str__(self):
-        return self.__repr__()
-
 class MatrixObject:
     def __init__(self, shape, dense=False):
         self.id = uuid.uuid4()
@@ -213,13 +207,6 @@ class MatrixObject:
         for i, c in enumerate(coords):
             if c < 0 or c >= self.shape[i]:
                 raise Exception("Matrix index out of bounds")
-
-    def __repr__(self):
-        cells = {str(list(k)): v.value for k, v in self.cells.items() if v.value is not None}
-        return f"MatrixObject{list(self.shape)}: {cells}"
-
-    def __str__(self):
-        return self.__repr__()
 
     def _get_cell(self, coords, create=False):
         coords = tuple(coords)

@@ -485,10 +485,8 @@ class Interpreter:
                 LinkedListInstance,
                 TreeSetInstance,
                 LinkedHashSetInstance,
-                TreeMapInstance,
-                MatrixObject
+                TreeMapInstance
             )
-            from .matrix import Matrix
 
             # --- Gestion spéciale des collections ---
             if isinstance(current_value, ListInstance):
@@ -534,10 +532,7 @@ class Interpreter:
             # =====================================================
             elif isinstance(current_value, LinkedListInstance):
                 if op_type == TokenType.PLUSEQ:
-                    if isinstance(increment, (list, tuple)):
-                        NAF["LinkedList"]["llAddAll"](current_value, increment)
-                    else:
-                        NAF["LinkedList"]["llAdd"](current_value, increment)
+                    NAF["LinkedList"]["llAdd"](current_value, increment)
                     new_value = current_value
                 elif op_type == TokenType.MINUSEQ:
                     for v in increment:
@@ -588,28 +583,6 @@ class Interpreter:
                     raise Exception(f"[Erreur] Opération abrégée non supportée pour TreeMapInstance : {op_type}")
 
             # =====================================================
-            # --- Matrix ---
-            elif isinstance(current_value, MatrixObject):
-                if op_type == TokenType.PLUSEQ:
-                    if isinstance(increment, (list, tuple)) and len(increment) == 2:
-                        coords, val = increment
-                        current_value.set(coords, val)
-                    new_value = current_value
-                elif op_type == TokenType.MINUSEQ:
-                    if isinstance(increment, (list, tuple)):
-                        current_value.set(increment, None)
-                    new_value = current_value
-                else:
-                    raise Exception(f"[Erreur] Opération non supportée pour MatrixObject : {op_type}")
-            elif isinstance(current_value, Matrix):
-                if op_type == TokenType.PLUSEQ:
-                    if isinstance(increment, Matrix):
-                        new_value = Matrix.add(current_value, increment)
-                    else:
-                        raise Exception("[Erreur] Matrix += nécessite une autre Matrix")
-                else:
-                    raise Exception(f"[Erreur] Opération non supportée pour Matrix : {op_type}")
-
             # --- Types simples ---
             # =====================================================
 
