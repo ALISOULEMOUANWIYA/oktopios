@@ -165,6 +165,18 @@ class Matrix:
     # Contraction N-dimensionnelle
     # -------------------------------------------------
 
+    def __repr__(self):
+        lines = []
+        for coord in sorted(self.cells.keys()):
+            v = self.cells[coord].value
+            if v != 0:
+                lines.append(f"  {coord} -> {v}")
+        body = "\n".join(lines) if lines else "  (vide)"
+        return f"Matrix{list(self.shape)}:\n{body}"
+
+    def __str__(self):
+        return self.__repr__()
+
     @staticmethod
     def contract(A, B, dimA, dimB):
 
