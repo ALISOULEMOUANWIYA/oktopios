@@ -1211,18 +1211,19 @@ class Interpreter:
         for stmt in program.body:
             if isinstance(stmt, FunDecl):
                 func = UserFunction(stmt, self.env)
-                # Déterminer l’arité minimale et maximale
-                total_params = len(stmt.params)
-                optional_params = sum(1 for (_, _, _, default) in stmt.params if default is not None)
 
-                min_arity = total_params - optional_params
-                max_arity = total_params
+                # Construire la signature des paramètres
+                param_types = [ptype for (_, ptype, _, _) in stmt.params]
+                type_signature = ",".join(param_types)
 
-                # Enregistre toutes les arités possibles
-                for arity in range(min_arity, max_arity + 1):
-                    full_name = f"{stmt.name}/{arity}"
-                    self.env.define(full_name, func)
+                # Enregistrer avec signature complète
+                full_key = f"{stmt.name}/{len(stmt.params)}/{type_signature}"
+                self.env.define(full_key, func)
+
+                # Garder aussi un enregistrement simple pour les appels sans vérification
+                # (optionnel, pour compatibilité)
                 self.env.define(stmt.name, value=func, arity=len(stmt.params))
+
 
     def visit_EnumDeclaration(self, stmt):
         enum_obj = RuntimeEnum(
@@ -1912,12 +1913,32 @@ class Interpreter:
     #        self.env.define(node.name, func)
 
     def get_type_name(self, val):
-        if isinstance(val, bool): return "bool"
-        if isinstance(val, int): return "int"
+        from .native_collections import ListInstance, TupleInstance, MapInstance, SetInstance
+        from .matrix import Matrix
+        from .native_advanced_collections import (
+            LinkedListInstance,
+            TreeSetInstance,
+            LinkedHashSetInstance,
+            TreeMapInstance,
+            MatrixObject
+        )
+        if val is None: return "void"
+        if isinstance(val, bool): return "bool"  # Changé de bool à "bool"
+        if isinstance(val, int): return "int"  # Changé d'int à "int"
         if isinstance(val, float): return "float"
         if isinstance(val, str): return "string"
-        if val is None: return "void"
-        return type(val).__name__
+        if isinstance(val, (UserFunction, LambdaFunction)): return "fun"
+        if isinstance(val, Matrix): return "Matrix"
+        if isinstance(val, MatrixObject): return "Matrix"
+        if isinstance(val, LinkedListInstance): return "LinkedList"
+        if isinstance(val, TreeSetInstance): return "TreeSet"
+        if isinstance(val, LinkedHashSetInstance): return "LinkedHashSet"
+        if isinstance(val, TreeMapInstance): return "TreeMap"
+        if isinstance(val, ListInstance): return "list"
+        if isinstance(val, SetInstance): return "set"
+        if isinstance(val, (MapInstance or dict)): return "map"
+        if isinstance(val, TupleInstance): return "tuple"
+        return val
 
     def evaluate_in_expr_context(self, expr):
         #print("ici dans evaluate in expr context ", expr)
@@ -1979,13 +2000,8 @@ class Interpreter:
             raise Exception(Fore.CYAN + f"[Erreur] Opérateur non supporté : {expr.operator}"+ Style.RESET_ALL)
 
     def evaluate_func_call(self, func_call):
-
         name = func_call.name
-
         args = [self.evaluate(arg) for arg in func_call.arguments]
-        arity = len(args)
-        full_name = f"{name}/{arity}"
-
         # 🔹 Fonctions natives
         if name in self.native_construct:
             try:
@@ -1994,10 +2010,42 @@ class Interpreter:
                 raise Exception(
                     Fore.CYAN + f"[Erreur lors de l'appel de la fonction native '{name}']: {str(e)}" + Style.RESET_ALL)
 
+        arity = len(args)
 
-        # 🔹 Essayer d'abord le nom complet avec arité
-        func = self.env.get(full_name, suppress_errors=True)
-        #print("func ",func)
+        # 🔥 Déterminer les types des arguments
+        arg_types = [self.get_type_name(arg) for arg in args]
+        type_signature = ",".join(arg_types)
+
+        # 🔥 Chercher avec signature complète d'abord
+        full_key = f"{name}/{arity}/{type_signature}"
+        func = self.env.get(full_key, suppress_errors=True)
+
+        # 🔥 Sinon, chercher seulement par arité (compatible avec conversion implicite ?)
+        if func is None:
+            # Chercher toutes les fonctions avec cette arité
+            candidates = []
+            for key, value in self.env.values.items():
+                if key.startswith(f"{name}/{arity}/"):
+                    # Parsing de la signature attendue
+                    expected_types = key.split("/")[2].split(",")
+                    # Vérifier compatibilité des types
+                    compatible = True
+                    for i, expected in enumerate(expected_types):
+                        if expected == "int" and arg_types[i] == "float":
+                            # Conversion int ← float possible (troncature)
+                            pass
+                        elif expected == "float" and arg_types[i] == "int":
+                            # Conversion float ← int possible
+                            pass
+                        elif expected != arg_types[i]:
+                            compatible = False
+                            break
+                    if compatible:
+                        candidates.append((key, value))
+
+            if candidates:
+                # Prendre la première compatible (ou gérer l'ambiguïté)
+                func = candidates[0][1]
 
         # 🔹 Sinon, essayer sans arité (pour les fonctions avec valeur par défaut)
         if func is None:
@@ -2009,17 +2057,42 @@ class Interpreter:
             if self.is_callable(value):
                 func = value
 
-
         # 🔹 Si une fonction valide est trouvée, on l'appelle
         if func:
             if self.is_callable(func):
-                # Vérifie le contexte d'utilisation pour les fonctions void
                 if isinstance(func, UserFunction):
                     if getattr(func.declaration, "return_type", None) == "void" and self.in_expr_context:
                         raise Exception(
                             Fore.CYAN + f"[Erreur] La fonction '{name}' est void et ne peut pas être utilisée dans une expression" + Style.RESET_ALL)
 
-                    return func.call(self, args)
+                    valeurReturn = func.call(self, args)
+
+                    # --- Logique de vérification ---
+                    actual_return_type = self.get_type_name(valeurReturn)
+                    declared_return_type = func.declaration.return_type
+
+                    # Vérification TOUJOURS active
+                    if declared_return_type != actual_return_type:
+                        # Cas spécial : une fonction qui retourne une autre fonction
+                        if declared_return_type == "fun" and self.is_callable(valeurReturn):
+                            # OK, une fonction peut retourner une fonction
+                            pass
+                        elif declared_return_type == None:
+                            pass
+                        else:
+                            raise Exception(
+                                Fore.CYAN + "[" + Style.RESET_ALL +
+                                Fore.LIGHTYELLOW_EX + "Erreur" + Style.RESET_ALL +
+                                Fore.CYAN + "] La fonction" + Style.RESET_ALL +
+                                Fore.LIGHTWHITE_EX + f" '{name}' " + Style.RESET_ALL +
+                                Fore.CYAN + f" est déclarée comme retournant " + Style.RESET_ALL +
+                                Fore.LIGHTWHITE_EX + f"[{declared_return_type}]" + Style.RESET_ALL +
+                                Fore.CYAN + " mais a retourné du type " + Style.RESET_ALL +
+                                Fore.LIGHTYELLOW_EX + f"[{actual_return_type}]" + Style.RESET_ALL
+                            )
+
+                    return valeurReturn
+
                 if isinstance(func, LambdaFunction):
                     return func.call(self, args)
 
