@@ -2047,9 +2047,20 @@ class Interpreter:
                 # Prendre la première compatible (ou gérer l'ambiguïté)
                 func = candidates[0][1]
 
+
         # 🔹 Sinon, essayer sans arité (pour les fonctions avec valeur par défaut)
         if func is None:
             func = self.env.get(name, suppress_errors=True)
+
+        # ✅ AJOUT : vérifier l'arité du fallback
+        if func is not None and isinstance(func, UserFunction):
+            expected_arity = len(func.declaration.params)
+            if len(args) != expected_arity:
+                raise Exception(
+                    f"[Erreur] La fonction '{name}' attend {expected_arity} argument(s), "
+                    f"mais {len(args)} ont été fournis."
+                )
+
 
         # 🔹 Sinon, essayer une variable contenant une fonction
         if func is None:
