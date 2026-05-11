@@ -2088,8 +2088,8 @@ class Interpreter:
                         if declared_return_type == "fun" and self.is_callable(valeurReturn):
                             # OK, une fonction peut retourner une fonction
                             pass
-                        # les fonctions sans type de retour explicite sont vérifiées comme si elles retournaient None
                         elif declared_return_type == None:
+                            # les fonctions sans type de retour explicite sont vérifiées comme si elles retournaient None
                             pass
                         else:
                             raise Exception(
