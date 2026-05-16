@@ -28,7 +28,8 @@ KEYWORDS = {
     "empty": TokenType.IS_EMPTY, # (pas encors implementer) pour verifier si une variable n'est pas vide
     "in": TokenType.IN, # pour verifier si une veariable A est dans une variable B
     "not": TokenType.NOT,  # pour neguer une condition
-    "matches": TokenType.IS_MATCHES,
+    "__matches__": TokenType.IS_MATCHES,
+    "matches": TokenType.MATCHES,
     "between": TokenType.BETWEEN,
 
     "if": TokenType.IF,

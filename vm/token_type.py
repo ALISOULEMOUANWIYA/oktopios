@@ -24,6 +24,7 @@ class TokenType(Enum):
     NOT_LIKE = auto()
     IS_EMPTY = auto()
     IS_MATCHES = auto()
+    MATCHES = auto()
     AND = auto()
     OR = auto()
     BETWEEN = auto()
