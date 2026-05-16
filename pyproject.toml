@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "oktopios"
-version = "0.0.15"
-description = "Oktopios — un langage de programmation moderne et expressif"
+version = "0.0.21"
+description = "Oktopios - un langage de programmation moderne, expressif et bio-inspire"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"

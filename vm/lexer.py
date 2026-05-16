@@ -17,20 +17,20 @@ KEYWORDS = {
     "char": TokenType.CHAR,
     "bool": TokenType.BOOL,
     "void": TokenType.VOID,
+
     "true": TokenType.BOOLVAL,
     "false": TokenType.BOOLVAL,
     "and": TokenType.AND,
+
     "or": TokenType.OR, # (pas encors implementer)
     "is": TokenType.IS, # (pas encors implementer) pour verifier si une veariable A est egale à une variable B
-    "is like": TokenType.IS_LIKE, # (pas encors implementer) pour verifier si une veariable A est egale à une variable B
-    "is not": TokenType.IS_NOT, # (pas encors implementer) pour verifier si une veariable A n'est pas egale à une varible B
-    "is not Like": TokenType.IS_NOT_LIKE, # (pas encors implementer) pour verifier si une veariable A n'est pas egale à une variable B
-    "not Like": TokenType.NOT_LIKE, # (pas encors implementer) pour verifier si une veariable A n'est pas egale à une variable B
-    "is not empty": TokenType.IS_NOT_EMPTY, # (pas encors implementer) pour verifier si une variable n'est pas vide
-    "not empty": TokenType.NOT_EMPTY, # (pas encors implementer) pour verifier si une variable n'est pas vide
+    "like": TokenType.IS_LIKE, # (pas encors implementer) pour verifier si une veariable A est egale à une variable B
+    "empty": TokenType.IS_EMPTY, # (pas encors implementer) pour verifier si une variable n'est pas vide
     "in": TokenType.IN, # pour verifier si une veariable A est dans une variable B
     "not": TokenType.NOT,  # pour neguer une condition
-    "not in": TokenType.NOT_IN, # (pas encors implementer) pour neguer une condition d'une variable A dans une variable B
+    "matches": TokenType.IS_MATCHES,
+    "between": TokenType.BETWEEN,
+
     "if": TokenType.IF,
     "else": TokenType.ELSE,
     "elif": TokenType.ELIF,
@@ -92,10 +92,14 @@ KEYWORDS = {
     "fun": TokenType.FUN,
     "lambda": TokenType.LAMBDA,
     "return": TokenType.RETURN,
+
     # Niveau 3 : POO pieuvrique
     "class": TokenType.CLASS,
     "abstract": TokenType.ABSTRACT,
     "interface": TokenType.INTERFACE,
+    "__construct": TokenType.CONSTRUCT, # Pour construire une instance
+    "__destruct": TokenType.DESTRUCT, # Pour detruire une instance
+
     "director": TokenType.DIRECTOR, # (pas encors implementer)
     "supervisor": TokenType.SUPEVISOR, # (pas encors implementer)
     "agent": TokenType.AGENT, # (pas encors implementer)
@@ -104,8 +108,6 @@ KEYWORDS = {
     "tent": TokenType.TENT, # (pas encors implementer) Pour definir que la class main est du coeur Central
     "intention": TokenType.INTENTION, # (pas encors implementer) Pour concentrer l'intention de tous les tentacules Xn à une tache en alerte
     "tentRandom": TokenType.TENT_RANDOM, # (pas encors implementer) Pour definir les tentacule à des taches aleatoire selon les paramtre reçus
-    "__construct": TokenType.CONSTRUCT, # Pour construire une instance
-    "__destruct": TokenType.DESTRUCT, # Pour detruire une instance
 
     "override": TokenType.OVERRIDE, # Pour las fonction override (abstract)
     "activate": TokenType.ACTIVATE, # pour activer une fonction ou une class non heritee

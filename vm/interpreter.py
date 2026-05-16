@@ -1,28 +1,29 @@
 import os
-
-from .ast_nodes import *
-from .parser import FuncCall
-from .token_type import TokenType
+import re
+import random
+from . ast_nodes import *
+from . parser import FuncCall
+from . token_type import TokenType
 from colorama import Fore, Back, Style
-from .environment import Environment
-from .lambda_function import LambdaFunction
-from .return_Value import ReturnValue
-from .user_function import UserFunction
-from .runtime_instance import RuntimeInstance, RuntimeInstance_for_enum
-from .runtime_class import RuntimeClass
-from .runtime_enum import RuntimeEnum
-from .native_constructeur import NativeCollectionsConstruct as constuct
-from .native_funcs import NativeFuncs as Funcs
-from .native_collections import NativeCollectionsFuncs as ColFuncs
-from .native_advanced_funcs import NativeAdvancedFuncs as AdvFuncs
-from .lexer import tokenize
-from .parser import Parser
-from .module_proxy import ModuleProxy
+from . environment import Environment
+from . lambda_function import LambdaFunction
+from . return_Value import ReturnValue
+from . user_function import UserFunction
+from . runtime_instance import RuntimeInstance, RuntimeInstance_for_enum
+from . runtime_class import RuntimeClass
+from . runtime_enum import RuntimeEnum
+from . native_constructeur import NativeCollectionsConstruct as constuct
+from . native_funcs import NativeFuncs as Funcs
+from . native_collections import NativeCollectionsFuncs as ColFuncs
+from . native_advanced_funcs import NativeAdvancedFuncs as AdvFuncs
+from . lexer import tokenize
+from . parser import Parser
+from . module_proxy import ModuleProxy
 
 
 
-from .bound_method import BoundMethod
-#from heart.heart import Heart
+from . bound_method import BoundMethod
+#from . heart.heart import Heart
 #DEBUG = False  # mettre True pour traces détaillées
 class Interpreter:
     def __init__(self):
@@ -32,7 +33,7 @@ class Interpreter:
         self.current_instance = None  # ← ici on déclare current_instance
         self.in_expr_context = False
         self.native_construct = {**constuct}
-        self.native_funcs = {**Funcs, **ColFuncs, **AdvFuncs}
+        self.native_funcs = { **AdvFuncs, **Funcs, **ColFuncs}
         self.variables = {}
         self.checkargMeth = {}
         self.fieldsMeth = {}
@@ -40,6 +41,9 @@ class Interpreter:
         self.interfaces = {}
         self.abstract_classes = {}
         self.enums = {}
+        self.central_tent = None
+        self.tentacles = []
+        self.heart_config = {}
         self.modules_loaded =  []
         self.modules_loaded_alias =  {}
         self.module_cache = {}  # module_name -> namespace dict
@@ -69,13 +73,14 @@ class Interpreter:
         # 2️⃣ Enregistrer toutes les classes (abstraites et concrètes)
         # ------------------------
         for stmt in program.body:
-            if isinstance(stmt, ClassDeclaration):
-                if getattr(stmt, "is_abstract", False):
-                    self.abstract_classes[stmt.name] = stmt
-                    #print(f"[Classe Abstraite] {stmt.name}")
+            class_stmt = stmt.class_decl if isinstance(stmt, (TentClass, TenClass)) else stmt
+            if isinstance(class_stmt, ClassDeclaration):
+                if getattr(class_stmt, "is_abstract", False):
+                    self.abstract_classes[class_stmt.name] = class_stmt
+                    #print(f"[Classe Abstraite] {class_stmt.name}")
                 else:
-                    self.classes[stmt.name] = stmt
-                    #print(f"[Classe Concrète] {stmt.name}")
+                    self.classes[class_stmt.name] = class_stmt
+                    #print(f"[Classe Concrete] {class_stmt.name}")
 
         # ------------------------
         # 3️⃣ Résoudre héritage et interfaces
@@ -112,6 +117,59 @@ class Interpreter:
                 #print(f"[Auto] Activation implicite de {target_class.name}.main()")
                 method.call(self, [])
 
+    def visit_TentClass(self, stmt):
+        self.central_tent = stmt
+        self.classes[stmt.name] = stmt.class_decl
+        for member in stmt.body:
+            if isinstance(member, HeartBlock):
+                self.visit_HeartBlock(member)
+        for member in stmt.body:
+            if isinstance(member, CoreBlock):
+                self.visit_CoreBlock(member)
+        return None
+
+    def visit_TenClass(self, stmt):
+        self.classes[stmt.name] = stmt.class_decl
+        instance = RuntimeInstance(stmt.class_decl, interpreter=self)
+        self.tentacles.append(instance)
+        return None
+
+    def visit_HeartBlock(self, stmt):
+        for s in stmt.body:
+            self.execute(s)
+        return None
+
+    def visit_CoreBlock(self, stmt):
+        for s in stmt.body:
+            self.execute(s)
+        return None
+
+    def visit_IntentionStmt(self, stmt):
+        args = [self.evaluate(arg) for arg in stmt.args]
+        for tentacle in self.tentacles:
+            self.dispatch_to_tentacle(tentacle, stmt.name, args, required=False)
+        return None
+
+    def visit_TentRandomStmt(self, stmt):
+        args = [self.evaluate(arg) for arg in stmt.args]
+        candidates = [tentacle for tentacle in self.tentacles if self.tentacle_has_method(tentacle, stmt.name, len(args))]
+        if not candidates:
+            return None
+        self.dispatch_to_tentacle(random.choice(candidates), stmt.name, args, required=True)
+        return None
+
+    def tentacle_has_method(self, tentacle, name, arity=None):
+        if arity is not None and f"{name}/{arity}" in tentacle.fieldsMeth:
+            return True
+        return name in tentacle.fieldsMeth
+
+    def dispatch_to_tentacle(self, tentacle, name, args, required=False):
+        if not self.tentacle_has_method(tentacle, name, len(args)):
+            if required:
+                raise Exception(f"[Erreur] Aucune methode '{name}/{len(args)}' dans la tentacule '{tentacle.klass.name}'")
+            return None
+        method = tentacle.get_method_bound(name, arg_count=len(args))
+        return method.call(self, args)
     # ---- EXECUTION ----
     def execute(self, stmt: Stmt):
         #print(f"[DEBUG EXECUTE] type = {type(stmt).__name__}")
@@ -427,6 +485,16 @@ class Interpreter:
             return  self.visit_UpadateDictLiteral(expr)
         elif isinstance(expr, BinaryOp):
             return self.evaluate_binary_op(expr)
+        elif isinstance(expr, IsEmptyExpr):
+            return self.visit_IsEmptyExpr(expr)
+        elif isinstance(expr, MatchesExpr):
+            return self.visit_MatchesExpr(expr)
+        elif isinstance(expr, MatchExpr):
+            return self.visit_MatchExpr(expr)
+        elif isinstance(expr, IsTypeExpr):
+            return self.visit_IsTypeExpr(expr)
+        elif isinstance(expr, BetweenExpr):
+            return self.visit_BetweenExpr(expr)
         elif isinstance(expr, UnaryExpr):
             operand = self.evaluate(expr.operand)
             if expr.operator.type == TokenType.MINUS:
@@ -478,17 +546,17 @@ class Interpreter:
             increment = self.evaluate(expr.value)
             op_type = expr.operator.type
             #print("Debug 3: ", current_value, increment, op_type)
-            from .native_collections import NativeCollectionsFuncs as NCF
-            from .native_advanced_funcs import NativeAdvancedFuncs as NAF
-            from .native_collections import ListInstance, TupleInstance, MapInstance, SetInstance
-            from .native_advanced_collections import (
+            from . native_collections import NativeCollectionsFuncs as NCF
+            from . native_advanced_funcs import NativeAdvancedFuncs as NAF
+            from . native_collections import ListInstance, TupleInstance, MapInstance, SetInstance
+            from . native_advanced_collections import (
                 LinkedListInstance,
                 TreeSetInstance,
                 LinkedHashSetInstance,
                 TreeMapInstance,
                 MatrixObject
             )
-            from .matrix import Matrix
+            from . matrix import Matrix
 
             # --- Gestion spéciale des collections ---
             if isinstance(current_value, ListInstance):
@@ -1294,7 +1362,7 @@ class Interpreter:
         # --- Helper : créer/binder un UserFunction depuis FunDecl ou depuis RuntimeClass.methods entry
         def make_bound_userfunction(maybe_decl_or_userfunc):
             # Si c'est déjà un UserFunction (ex: RuntimeClass.methods stocke UserFunction), binder si besoin
-            from .user_function import UserFunction
+            from . user_function import UserFunction
             if isinstance(maybe_decl_or_userfunc, UserFunction):
                 # s'assurer qu'il est bound à l'instance (UserFunction garde instance dans son champ)
                 # si instance déjà présent, on le retourne ; sinon on crée un nouveau bound
@@ -1913,9 +1981,9 @@ class Interpreter:
     #        self.env.define(node.name, func)
 
     def get_type_name(self, val):
-        from .native_collections import ListInstance, TupleInstance, MapInstance, SetInstance
-        from .matrix import Matrix
-        from .native_advanced_collections import (
+        from . native_collections import ListInstance, TupleInstance, MapInstance, SetInstance
+        from . matrix import Matrix
+        from . native_advanced_collections import (
             LinkedListInstance,
             TreeSetInstance,
             LinkedHashSetInstance,
@@ -1955,9 +2023,13 @@ class Interpreter:
     def evaluate_binary_op(self, expr):
         left = self.evaluate_in_expr_context(expr.left)
         right = self.evaluate_in_expr_context(expr.right)
-        op_type = expr.operator.type
 
-        #print("debug : evaluate_binary_op = ", op_type)
+        if expr.operator == TokenType.NOT_LIKE or expr.operator == TokenType.NOT_IN :
+            op_type = expr.operator
+        else:
+            op_type = expr.operator.type
+
+        #print("debug : evaluate_binary_op = ", op_type, TokenType.IS_LIKE)
 
         if op_type == TokenType.GT:
             return left > right
@@ -1975,13 +2047,22 @@ class Interpreter:
             return left in right
         elif op_type == TokenType.NOT_IN:
             return left not in right
+        elif op_type == TokenType.IS:
+            return left == right
+        elif op_type == TokenType.IS_LIKE:
+            return str(right) in str(left)
+        elif op_type == TokenType.NOT_LIKE:
+            return str(right) not in str(left)
+        elif op_type == TokenType.OR:
+            if isinstance(right, (list, tuple, set, dict, OktopiosList)):
+                return left in right
+            return self.is_truthy(left) or self.is_truthy(right)
         elif op_type == TokenType.PLUS:
             if isinstance(left, str) and not isinstance(right, str):
                 return left + str(right)
             elif not isinstance(left, str) and isinstance(right, str):
                 return str(left) + right
             return left + right
-
         elif op_type == TokenType.MINUS:
             return left - right
         elif op_type == TokenType.STAR:
@@ -1990,14 +2071,142 @@ class Interpreter:
             return result
         elif op_type == TokenType.PERCENT:
             return left % right
-        elif expr.operator.type == TokenType.SLASH:
+        elif op_type == TokenType.SLASH:
             right = self.evaluate(expr.right)
             if right == 0:
                 raise RuntimeError(Fore.CYAN + "Division par zéro"+ Style.RESET_ALL)
             return self.evaluate(expr.left) / right
-
         else:
             raise Exception(Fore.CYAN + f"[Erreur] Opérateur non supporté : {expr.operator}"+ Style.RESET_ALL)
+
+    def is_truthy(self, value):
+        #Null / None
+        if value is None:
+            return False
+        #Bool natif
+        if isinstance(value, bool):
+            return value
+        #Numériques
+        if isinstance(value, (int, float)):
+            return value != 0
+        #String
+        if isinstance(value, str):
+            return value != ""
+        #Liste/Dict/Tuple/ Set
+        if isinstance(value, (list, dict, tuple, set)):
+            return len(value) > 0
+
+        return True
+
+    def visit_IsEmptyExpr(self, expr):
+        value = self.evaluate(expr.expr)
+
+        if value is None:
+            return not expr.negate
+
+        try:
+            size = len(value)
+        except TypeError:
+            raise RuntimeError("Type is not iterable and cannot be checked for emptiness.")
+
+        if expr.negate:
+            return size != 0
+        return size == 0
+
+    def visit_MatchesExpr(self, expr):
+        value = str(self.evaluate(expr.expr))
+        pattern = str(self.evaluate(expr.pattern))
+
+        return re.match(pattern, value) is not None
+
+    def visit_MatchExpr(self, expr):
+        match_value = self.evaluate(expr.value)
+        results = []
+
+        for case in expr.cases:
+            for pattern in case.patterns:
+                if self.match_pattern(match_value, pattern):
+                    results.append(self.evaluate(case.body))
+                    break
+
+        if not results:
+            return self.evaluate(expr.else_branch)
+        if len(results) == 1:
+            return results[0]
+        return OktopiosList(results)
+
+    def match_pattern(self, value, pattern):
+        # Pattern avec valeur simple
+        if isinstance(pattern, ValuePattern):
+            pattern_value = self.evaluate(pattern.expr)
+            return value == pattern_value
+
+        # Pattern IN (value in container)
+        elif isinstance(pattern, InPattern):
+            container = self.evaluate(pattern.pattern)
+            return value in container
+
+        # Pattern LIKE: collection membership, otherwise text containment.
+        elif isinstance(pattern, LikePattern):
+            expected = self.evaluate(pattern.pattern)
+            if isinstance(expected, (list, tuple, set, dict, OktopiosList)):
+                return value in expected
+            return str(expected) in str(value)
+
+        # Pattern BETWEEN
+        elif isinstance(pattern, BetweenPattern):
+            lower = self.evaluate(pattern.lower)
+            upper = self.evaluate(pattern.upper)
+            return lower <= value <= upper
+
+        # Pattern MATCHES (regex)
+        elif isinstance(pattern, RegexPattern):
+            regex_str = str(self.evaluate(pattern.pattern_expr))
+            return re.match(regex_str, str(value)) is not None
+
+        # Pattern IS TYPE
+        elif isinstance(pattern, TypePattern):
+            type_token = pattern.type_token
+            type_map = {
+                TokenType.INT: int,
+                TokenType.STRING: str,
+                TokenType.FLOAT: float,
+                TokenType.BOOL: bool,
+            }
+            expected_type = type_map.get(type_token.type)
+            return isinstance(value, expected_type)
+
+        # Pattern RANGE (X|Y)
+        elif isinstance(pattern, RangePattern):
+            start = self.evaluate(pattern.start)
+            end = self.evaluate(pattern.end)
+            return start <= value <= end
+
+        # Fallback: évaluation directe
+        else:
+            pattern_value = self.evaluate(pattern)
+            return value == pattern_value
+
+    def visit_IsTypeExpr(self, expr):
+        value = self.evaluate(expr.expr)
+
+        type_map = {
+            TokenType.INT: int,
+            TokenType.STRING: str,
+            TokenType.FLOAT: float,
+            TokenType.BOOL: bool,
+        }
+
+        expected_type = type_map.get(expr.type_token.type)
+
+        return isinstance(value, expected_type)
+
+    def visit_BetweenExpr(self, expr):
+        value = self.evaluate(expr.expr)
+        lower = self.evaluate(expr.lower)
+        upper = self.evaluate(expr.upper)
+
+        return lower <= value <= upper
 
     def evaluate_func_call(self, func_call):
         name = func_call.name
@@ -2156,7 +2365,7 @@ class Interpreter:
 
     def visit_UpadateDictLiteral(self, expr):
         result = {}
-        from .native_collections import NativeCollectionsFuncs as NCF
+        from . native_collections import NativeCollectionsFuncs as NCF
         target = self.env.get(expr.target.name)  # ✅ récupère la vraie map
         for key_expr, val_expr in expr.updates.pairs:
             key = self.evaluate(key_expr)
@@ -2259,7 +2468,7 @@ class Interpreter:
 
         env = getattr(module_interp, "env", None)
         if env is None:
-            raise Exception(f"[from import] Module '{module_name}' sans environnement valide.")
+            raise Exception(f"[from . import] Module '{module_name}' sans environnement valide.")
 
         if names == ["*"]:
             # Importation globale sans vérif (option : avertir)
@@ -2272,7 +2481,7 @@ class Interpreter:
                         break
             for k, v in candidates:
                 if self.env.exists(k):
-                    print(f"[Avertissement] Redéfinition du symbole global '{k}' via 'from {module_name} import *'")
+                    print(f"[Avertissement] Redéfinition du symbole global '{k}' via 'from . {module_name} import *'")
                 self.env.define(k, v)
             return
 
@@ -2308,7 +2517,7 @@ class Interpreter:
                         if val is not None:
                             break
             if val is None:
-                raise Exception(f"[from import] Symbole '{name}' introuvable dans '{module_name}'")
+                raise Exception(f"[from . import] Symbole '{name}' introuvable dans '{module_name}'")
 
             # Définir le symbole dans l’environnement
             self.env.define(alias_name, val)

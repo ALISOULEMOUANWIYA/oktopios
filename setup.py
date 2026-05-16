@@ -7,18 +7,19 @@ from setuptools.command.develop import develop
 
 
 def run_post_install():
-    """Appeler post_install.py après l'installation."""
+    """Run optional post-install setup."""
     try:
         import vm.post_install as pi
         pi.run_post_install()
     except Exception as e:
-        print(f"  ⚠️  Post-install optionnel ignoré: {e}")
+        print(f"  Post-install optionnel ignore: {e}")
 
 
 class PostInstallCommand(install):
     def run(self):
         install.run(self)
-        run_post_install()
+        if "bdist_wheel" not in sys.argv:
+            run_post_install()
 
 
 class PostDevelopCommand(develop):
@@ -34,8 +35,8 @@ if os.path.exists("README.md"):
 
 setup(
     name="oktopios",
-    version="0.0.15",
-    description="Oktopios — un langage de programmation moderne et expressif 🐙",
+    version="0.0.21",
+    description="Oktopios - un langage de programmation moderne, expressif et bio-inspire",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Mouanwiya Ali Soule",

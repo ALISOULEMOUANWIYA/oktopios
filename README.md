@@ -1,198 +1,188 @@
-# 🐙 Oktopios
+﻿# Oktopios
 
-> Un langage de programmation moderne, expressif et orienté objet, interprété en Python.
+Oktopios est un langage de programmation expérimental, moderne et expressif, interprété en Python. Il combine une syntaxe lisible, un modèle orienté objet, des fonctions avancées, des modules natifs et une architecture bio-inspirée appelée architecture pieuvrique.
 
----
+L'objectif du projet est de construire un langage capable d'orchestrer des unités d'exécution locales comme des tentacules autour d'un cerveau central. Oktopios n'est donc pas seulement un langage de script : c'est une base pour explorer l'exécution distribuée interne, les matrices, l'adaptation IA et les systèmes modulaires.
 
-## Installation Général 
+## Vision
+
+Oktopios s'inspire de l'organisation d'une pieuvre :
+
+- un cerveau central pour la gouvernance et l'orchestration ;
+- plusieurs coeurs spécialisés pour l'exécution, la circulation des données et l'adaptation ;
+- des tentacules capables d'exécuter localement des tâches ;
+- un mécanisme d'intention pour diffuser des ordres ;
+- une distribution aléatoire ou dynamique des tâches avec `tentRandom` ;
+- une ouverture vers des modules IA adaptatifs comme Ollama, DeepSeek ou StarCoder.
+
+Cette vision se traduit progressivement dans le langage avec les mots-clés :
+
+```okp
+tent
+heart
+core
+ten
+intention
+tentRandom
+```
+
+## Installation
+
+### Depuis PyPI
 
 ```bash
-pip install oktopios          # s'exécute automatiquement
-okp-setup                     # pour forcer si besoin l'apparition de l'icons oktopios
-```
-
-Ou depuis les sources :
-
-```bash
-git clone https://github.com/ALISOULEMOUANWIYA/oktopios
-cd oktopios
-```
-### puis en suite Choisir l'installation selon votre plateform
-## 🪟 Windows
-
-### Méthode 1 — Script automatique (recommandé)
-```powershell
-# Dans PowerShell (en tant qu'administrateur)
-powershell -ExecutionPolicy Bypass -File installers\windows\install.ps1
-```
-
-### Méthode 2 — Double-clic
-Double-cliquez sur `installers\windows\install.bat`
-
-### Méthode 3 — pip
-```powershell
 pip install oktopios
 ```
 
-Après installation, ouvrez un **nouveau** PowerShell :
-```powershell
-$env:PATH += ";$env:APPDATA\Python\Python312\Scripts"
+Après installation :
+
+```bash
 okp --version
-okp "print('Bonjour Oktopios !')"
+okp 'print("Bonjour Oktopios")'
 ```
 
----
-## 🐧 Linux (Ubuntu, Debian, Fedora, Arch...)
+### Depuis les sources
 
-### Méthode 1 — pip
+```bash
+git clone https://github.com/ALISOULEMOUANWIYA/oktopios.git
+cd oktopios
+pip install -e .
+```
+
+### Windows
+
+```powershell
+pip install oktopios
+okp-setup
+okp --version
+```
+
+Si la commande `okp` n'est pas reconnue, ouvrez un nouveau terminal ou ajoutez le dossier Scripts de Python au `PATH`.
+
+### Linux et macOS
+
 ```bash
 pip install oktopios
+okp --version
 ```
 
-### Méthode 2 
+Depuis le dépôt :
+
 ```bash
 bash installers/linux/install.sh
-source ~/.bashrc
-okp --version
-```
-
----
-
-## 🍎 macOS
-### Méthode 1 — pip
-```bash
-pip install oktopios
-```
-
-### Méthode 2 
-```bash
+# ou
 bash installers/macos/install.sh
-source ~/.zshrc
-okp --version
 ```
 
----
+### Android avec Termux
 
-## 🤖 Android — Termux
+Installez Termux depuis F-Droid, puis :
 
-**Installer Termux** depuis [F-Droid](https://f-droid.org/packages/com.termux/)
-*(pas depuis le Play Store — version obsolète)*
-Puis dans Termux :
-### Méthode 1 — pip
 ```bash
+pkg install python git -y
 pip install oktopios
-```
-### Méthode 2
-```bash
-bash installers/android-termux/termux-install.sh
 okp --version
 ```
 
-Ou en une seule commande :
-```bash
-pkg install python git -y && \
-git clone https://github.com/ALISOULEMOUANWIYA/oktopios && \
-cd oktopios && bash installers/android-termux/termux-install.sh
-```
+### iPhone ou iPad avec iSH
 
----
-
-## 📱 iPhone / iPad — iSH Shell
-
-**Installer iSH Shell** depuis l'[App Store](https://apps.apple.com/app/ish-shell/id1436902243) (gratuit)
-
-iSH émule un terminal Linux Alpine sur iOS.
-
-Puis dans iSH :
-### Méthode 1 — pip
 ```sh
-apk update && apk add python3 py3-pip
+apk update
+apk add python3 py3-pip
 pip install oktopios
-```
-
-### Méthode 2
-```sh
-# Mise à jour Alpine
-apk update && apk add git python3 py3-pip
-
-# Cloner et installer
-git clone https://github.com/ALISOULEMOUANWIYA/oktopios
-cd oktopios
-sh installers/ios-ish/ios-install.sh
-
-# Tester
 okp --version
 ```
-
----
-
 
 ## Utilisation rapide
 
 ```bash
 # Exécuter un fichier
-okp mon_programme.okp
+okp programme.okp
 
-# Code en ligne
-okp 'print("Bonjour 🐙")'
+# Exécuter du code inline
+okp 'print("Bonjour")'
 
-# Mode interactif (REPL)
+# Lancer le REPL
 okp --repl
 
-# Aide complète
+# Afficher l'aide
 okp --help
 ```
----
-## 🔄 Désinstallation
 
-### Windows
-```powershell
-Remove-Item -Recurse "$env:LOCALAPPDATA\Oktopios"
-# Puis supprimer manuellement de PATH dans : Paramètres → Variables d'environnement
-```
-
-### Linux / macOS
-```bash
-rm -rf ~/.local/lib/oktopios ~/.local/bin/okp
-```
-
-### Termux
-```bash
-rm -rf ~/.oktopios $PREFIX/bin/okp
-```
-
-### iSH
-```sh
-rm -rf ~/.oktopios /usr/local/bin/okp
-```
----
-## Syntaxe de base d'Oktopios 🐙
+## Premier programme
 
 ```okp
-// Variables et constantes
-var age: int = 25
-val nom: string = "Mouanwiya"
+val nom: string = "Oktopios"
+print("Bonjour " + nom)
+```
 
-// Fonctions
-fun saluer(prenom: string): string {
-    return "Bonjour " + prenom + " !"
+## Syntaxe de base
+
+### Variables
+
+```okp
+val x: int = 10          // constante
+var compteur: int = 0    // variable mutable
+var message = "Salut"    // type inféré
+```
+
+### Fonctions
+
+```okp
+fun add(a: int, b: int): int {
+    return a + b
 }
-print(saluer(nom))
 
-// Surcharge de fonctions
-fun calcule(a: int, b: int): int { return a + b }
-fun calcule(a: int, b: int, c: int): int { return (a + b) * c }
+print(add(2, 3))
+```
 
-// Lambdas
+### Surcharge
+
+```okp
+fun calcule(a: int, b: int): int {
+    return a + b
+}
+
+fun calcule(a: int, b: int, c: int): int {
+    return (a + b) * c
+}
+```
+
+### Lambdas
+
+```okp
 val doubler = lambda(x: int) => x * 2
-print(doubler(5))   // 10
+print(doubler(5))
+```
 
-// Boucles
-loop (i = 0; i < 5; i += 1) {
+### Conditions
+
+```okp
+if (compteur > 10) {
+    print("grand")
+} elif (compteur == 10) {
+    print("égal")
+} else {
+    print("petit")
+}
+```
+
+### Boucles
+
+```okp
+for (var i: int = 0; i < 5; i += 1) {
     print(i)
 }
 
-// Classes
+var noms: string[] = ["Awa", "Mouanwiya", "Ali"]
+for (nom in noms) {
+    print(nom)
+}
+```
+
+## Classes et objets
+
+```okp
 class Animal {
     var nom: string
 
@@ -207,63 +197,207 @@ class Animal {
 
 var chat = new Animal("Mimi")
 print(chat.parler())
-
-// Modules natifs
-inject Math as math
-inject String
-
-print(Math.sqrt(16))           // 4.0
-print(String.upper("hello"))   // HELLO
 ```
 
-## matrix.new([lignes, colonnes]) → MatrixObject (sparse) Pour les graphes, réseaux, liens entre cellules, traversée BFS/DFS :
+Oktopios prend aussi en charge progressivement :
+
+- interfaces ;
+- classes abstraites ;
+- héritage ;
+- `override` ;
+- `super` ;
+- énumérations ;
+- méthodes statiques ;
+- visibilité `public`, `private`, `protected`, `global`.
+
+## Pattern matching avec `__matches__`
+
+`__matches__` permet de comparer une valeur contre plusieurs formes. Il peut retourner plusieurs résultats si plusieurs cas sont vrais.
+
+```okp
+val x = 20
+val y = 20
+var list: string[] = ["@Nabile", "@Soultan", "@Abdallah"]
+
+val r = __matches__ x => {
+    1                 => "one"
+    2, 3              => "two or three"
+    4|10              => "dans le range [4:10]"
+    in list           => "dans la liste"
+    like y            => f"x{x} = y{y}"
+    between 18 and 30 => f"{x} appartient à [18:30]"
+    is int            => "integer"
+    else              => "other"
+}
+
+print(r)
 ```
+
+Patterns supportés :
+
+- valeurs simples : `1`, `"hello"` ;
+- plusieurs valeurs : `2, 3` ;
+- intervalle : `4|10` ;
+- appartenance : `in list` ;
+- ressemblance ou contenance : `like value` ;
+- intervalle explicite : `between 18 and 30` ;
+- regex : `matches "[a-z]+"` ;
+- type : `is int`, `is string`, `is float`, `is bool` ;
+- fallback : `else`.
+
+## Architecture pieuvrique
+
+Oktopios introduit une architecture bio-inspirée pour organiser l'exécution.
+
+```okp
+tent class Brain {
+    heart {
+        var mode: string = "defense"
+    }
+
+    core {
+        print("System Ready")
+    }
+}
+
+ten class Arm1 {
+    fun alert(msg: string) {
+        print("Arm1 received " + msg)
+    }
+}
+
+ten class Arm2 {
+    fun alert(msg: string) {
+        print("Arm2 received " + msg)
+    }
+}
+
+intention alert("Danger")
+tentRandom alert("Ping")
+```
+
+Dans ce modèle :
+
+- `tent class` déclare le cerveau central ;
+- `heart` contient la configuration centrale ;
+- `core` contient le noyau exécuté au démarrage ;
+- `ten class` déclare une tentacule locale ;
+- `intention` diffuse un appel à toutes les tentacules compatibles ;
+- `tentRandom` envoie un appel à une tentacule compatible choisie au hasard.
+
+Cette partie est en évolution. Le but est d'aller vers un vrai moteur interne de routage, d'adaptation et d'exécution distribuée.
+
+## Matrices
+
+Oktopios possède un module `matrix` pour manipuler des structures denses ou clairsemées.
+
+### Matrice clairsemée
+
+Utile pour les graphes, réseaux, liens entre cellules ou parcours BFS/DFS.
+
+```okp
 inject matrix
+
 var m = matrix.new([3, 3])
 matrix.set(m, [0, 0], 42)
 matrix.link(m, [0, 0], m, [1, 1])
 var chemin = matrix.traverse(m, [0, 0], "bfs")
 ```
 
-## matrix.new([lignes, colonnes], true) → Matrix (dense) Pour les calculs mathématiques, addition, produit tensoriel, IA :
-```
+### Matrice dense
+
+Utile pour les calculs mathématiques, l'IA et les opérations numériques.
+
+```okp
 inject matrix
+
 var A = matrix.new([2, 2], true)
 var B = matrix.new([2, 2], true)
 matrix.set(A, [0, 0], 1)
+
 var C = matrix.add(A, B)
 var T = matrix.tensor(A, B)
 var R = matrix.contract(A, B, 0, 1)
 ```
-## Fonctionnalités
 
-- ✅ Variables typées (`var`, `val`)
-- ✅ Fonctions avec surcharge (overloading)
-- ✅ Lambdas et fonctions anonymes
-- ✅ Classes, interfaces, classes abstraites
-- ✅ Héritage, `override`, `super`
-- ✅ Énumérations
-- ✅ Modules natifs : `Math`, `String`, `Time`, `IO`, `List`, `Dict`...
-- ✅ Boucles avancées : `loop`, `filterLoop`, `sortLoop`, `permuteLoop`...
-- ✅ Gestion des exceptions (`try / catch / finally / throw`)
-- ✅ REPL interactif
-- ✅ Importation de fichiers `.okp`
+## Modules natifs
+
+Oktopios utilise `inject` pour charger des modules natifs.
+
+```okp
+inject Math
+inject String
+inject matrix
+
+print(Math.sqrt(16))
+print(String.upper("oktopios"))
+```
+
+Modules et familles de fonctionnalités disponibles ou en évolution :
+
+- `Math` ;
+- `String` ;
+- collections ;
+- matrices ;
+- temps et entrées/sorties ;
+- fonctions avancées ;
+- coeur `heart` ;
+- modules adaptatifs.
+
+## Gestion des erreurs
+
+```okp
+try {
+    throw "erreur volontaire"
+} catch(e) {
+    print("Attrapé : " + e)
+} finally {
+    print("Fin")
+}
+```
 
 ## Commandes CLI
 
 | Commande | Description |
 |---|---|
-| `okp fichier.okp` | Exécute un fichier |
+| `okp fichier.okp` | Exécute un fichier Oktopios |
 | `okp 'code'` | Exécute du code inline |
 | `okp --repl` | Lance le REPL |
 | `okp --check fichier.okp` | Vérifie la syntaxe |
 | `okp --version` | Affiche la version |
 | `okp --keywords` | Liste les mots-clés |
 | `okp --native` | Liste les fonctions natives |
-| `okp --doc` | Documentation intégrée |
-| `okp --init NomProjet` | Crée un projet |
+| `okp --doc` | Affiche la documentation intégrée |
+| `okp --init NomProjet` | Crée un projet Oktopios |
+
+## Structure du projet
+
+```text
+vm/
+  lexer.py                # tokenisation
+  parser.py               # parsing vers AST
+  ast_nodes.py            # modèle AST
+  interpreter.py          # exécution
+  environment.py          # environnements et portées
+  runtime_instance.py     # instances objets
+  native_funcs.py         # fonctions natives
+  native_collections.py   # collections natives
+  matrix.py               # matrices
+  heart/                  # modules coeur
+  modules/                # modules .okp
+installers/               # scripts d'installation
+tests/                    # tests et exemples
+docs/                     # documentation
+```
+
+## État du projet
+
+Oktopios est encore expérimental. Certaines fonctionnalités sont stables, d'autres sont en cours de conception ou d'intégration. Le langage évolue rapidement autour de trois axes :
+
+- lisibilité de la syntaxe ;
+- puissance du runtime objet et fonctionnel ;
+- architecture pieuvrique pour l'orchestration, les matrices et l'adaptation IA.
 
 ## Licence
 
 MIT © Mouanwiya Ali Soule
-

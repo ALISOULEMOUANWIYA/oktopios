@@ -1,8 +1,10 @@
-#dans ast_nodes.py
-from .lexer import Token
-from typing import List, Union, Optional, Dict, Any
-from dataclasses import dataclass, field
-#--------------------
+# dans ast_nodes.py
+from . lexer import Token
+from  typing import List, Union, Optional, Dict, Any
+from  dataclasses import dataclass, field
+
+
+# --------------------
 # ---- Expressions ----
 @dataclass
 class Expr:
@@ -14,6 +16,7 @@ class Variable(Expr):
     name: str
     line: str  # 🔹 Ajouter la ligne du code source
     column: str  # 🔹 Ajouter la ligne du code source
+
 
 @dataclass
 class ClassDeclaration:
@@ -35,6 +38,7 @@ class ClassDeclaration:
             else:
                 self.variables.append(m)
 
+
 @dataclass
 class InterfaceDeclaration:
     def __init__(self, name, methods, super_interfaces=None):
@@ -45,19 +49,63 @@ class InterfaceDeclaration:
         for m in methods:
             m.parent = self  # ⚡ assignation parent pour règles 'invoke'
 
+
+@dataclass
+class TentClass:
+    def __init__(self, class_decl):
+        self.class_decl = class_decl
+        self.name = class_decl.name
+        self.body = class_decl.members
+
+
+@dataclass
+class TenClass:
+    def __init__(self, class_decl):
+        self.class_decl = class_decl
+        self.name = class_decl.name
+        self.body = class_decl.members
+
+
+@dataclass
+class HeartBlock:
+    def __init__(self, body):
+        self.body = body
+
+
+@dataclass
+class CoreBlock:
+    def __init__(self, body):
+        self.body = body
+
+
+@dataclass
+class IntentionStmt:
+    def __init__(self, name, args):
+        self.name = name
+        self.args = args
+
+
+@dataclass
+class TentRandomStmt:
+    def __init__(self, name, args):
+        self.name = name
+        self.args = args
+
+
 @dataclass
 class EnumDeclaration:
     def __init__(self, name, values, fields=None, methods=None):
-        self.name = name                  # Nom de l'enum (ex: Level)
-        self.values = values              # Liste [(nom_const, [args])]
-        self.fields = fields or []        # Liste de FieldDecl
-        self.methods = methods or []      # Liste de FunDecl
+        self.name = name  # Nom de l'enum (ex: Level)
+        self.values = values  # Liste [(nom_const, [args])]
+        self.fields = fields or []  # Liste de FieldDecl
+        self.methods = methods or []  # Liste de FunDecl
         self.type = "enum"
+
 
 @dataclass
 class Field:
     def __init__(self, decl, value=None):
-        self.decl = decl      # VarDecl ou None
+        self.decl = decl  # VarDecl ou None
         self.value = value if value is not None else getattr(decl, "value", None)
 
     @property
@@ -71,10 +119,11 @@ class Field:
     def __repr__(self):
         return f"Field(value={self.value}, const={self.is_constant}, access={self.access_modifier})"
 
+
 @dataclass
 class FieldMethode:
     def __init__(self, methodeName):
-        self.methodeName = methodeName      # VarDecl ou None
+        self.methodeName = methodeName  # VarDecl ou None
 
     @property
     def visibility(self):
@@ -83,14 +132,16 @@ class FieldMethode:
     def __repr__(self):
         return f"Field Methode (access={self.visibility})"
 
+
 @dataclass
 class NewInstanceExpr:
     def __init__(self, class_name, arguments=None):
-        self.class_name = class_name      # str : nom de la classe
+        self.class_name = class_name  # str : nom de la classe
         self.arguments = arguments or []  # list : expressions pour le constructeur
 
     def __str__(self):
         return f"NewInstanceExpr({self.class_name}, args={self.arguments})"
+
 
 @dataclass
 class Instance:
@@ -102,7 +153,7 @@ class Instance:
         }
 
         # 🔹 Méthodes liées à l'instance
-        from .user_function import UserFunction
+        from . user_function import UserFunction
         self.methods = {}
         for method_decl in getattr(klass, "methods", []):
             self.methods[method_decl.name] = UserFunction(
@@ -111,11 +162,13 @@ class Instance:
                 instance=self  # 🔹 permet 'this'
             )
 
+
 @dataclass
 class GetAttrExpr:
     def __init__(self, object_expr, name):
         self.object_expr = object_expr
         self.name = name
+
 
 @dataclass
 class MethodCallExpr:
@@ -124,9 +177,11 @@ class MethodCallExpr:
         self.method_name = method_name
         self.arguments = arguments
 
+
 @dataclass
 class Stmt:
     pass
+
 
 @dataclass
 class VarDecl(Stmt):
@@ -142,11 +197,13 @@ class VarDecl(Stmt):
         init_part = f" = {self.value}" if self.value is not None else ""
         return f"{self.access_modifier} {'val' if self.is_constant else 'var'} {self.name}: {self.type_}{init_part}"
 
+
 @dataclass
 class IndexAccess:
     def __init__(self, obj, index):
         self.obj = obj
         self.index = index
+
 
 @dataclass
 class IndexAssignment:
@@ -154,6 +211,7 @@ class IndexAssignment:
         self.obj = obj
         self.index = index
         self.value = value
+
 
 @dataclass
 class IndexThisAssignment:
@@ -163,15 +221,17 @@ class IndexThisAssignment:
         self.index = index
         self.value = value
 
+
 @dataclass
 class Assignment:
     def __init__(self, name, value, assign_type):
-        self.name = name      # str
+        self.name = name  # str
         self.assign_type = assign_type
-        self.value = value    # Expression
+        self.value = value  # Expression
 
     def __repr__(self):
         return f"Assignment(name={self.name}, value={self.value})"
+
 
 @dataclass
 class AugmentedAssign(Stmt):
@@ -183,6 +243,7 @@ class AugmentedAssign(Stmt):
     def __repr__(self):
         return f"AugmentedAssign(name={self.name}, operator={self.operator}, value={self.value})"
 
+
 # ast_node.py
 @dataclass
 class PrintStmt(Stmt):
@@ -191,6 +252,7 @@ class PrintStmt(Stmt):
 
     def __repr__(self):
         return f"PrintStmt(expressions={self.expressions!r}, kwargs={self.kwargs!r})"
+
 
 # ast_node.py
 @dataclass
@@ -201,9 +263,11 @@ class FStringStmt(Expr):
     def __repr__(self):
         return f"FString(value={self.value!r})"
 
+
 @dataclass
 class Program:
     body: List[Stmt]
+
 
 @dataclass
 class BinaryOp(Expr):
@@ -215,10 +279,119 @@ class BinaryOp(Expr):
     def __repr__(self):
         return f"BinaryOp({self.left}, {self.operator}, {self.right})"
 
+
+class Pattern:
+    pass
+
+
+class ValuePattern(Pattern):
+    def __init__(self, expr):
+        self.expr = expr
+
+
+class RangePattern(Pattern):
+    def __init__(self, start, end, step=None):
+        self.start = start
+        self.end = end
+        self.step = step
+
+
+class TypePattern(Pattern):
+    def __init__(self, type_token):
+        self.type_token = type_token
+
+
+class BetweenPattern(Pattern):
+    def __init__(self, lower, upper):
+        self.lower = lower
+        self.upper = upper
+
+
+class RegexPattern(Pattern):
+    def __init__(self, pattern_expr):
+        self.pattern_expr = pattern_expr
+
+
+class GuardedPattern(Pattern):
+    def __init__(self, pattern, guard_expr):
+        self.pattern = pattern
+        self.guard_expr = guard_expr
+
+
+class LikePattern(Pattern):
+    def __init__(self, pattern):
+        self.pattern = pattern
+
+
+class InPattern(Pattern):
+    def __init__(self, pattern):
+        self.pattern = pattern
+
+
 @dataclass
 class UnaryExpr(Expr):
     operator: Token
     operand: Expr
+
+
+@dataclass
+class IsEmptyExpr:
+    def __init__(self, expr, negate=False):
+        self.expr = expr
+        self.negate = negate
+
+    def accept(self, visitor):
+        return visitor.visit_IsEmptyExpr(self)
+
+
+@dataclass
+class BetweenExpr:
+    def __init__(self, expr, lower, upper):
+        self.expr = expr
+        self.lower = lower
+        self.upper = upper
+
+    def accept(self, visitor):
+        return visitor.visit_BetweenExpr(self)
+
+
+@dataclass
+class IsTypeExpr:
+    def __init__(self, expr, type_token):
+        self.expr = expr
+        self.type_token = type_token
+
+    def accept(self, visitor):
+        return visitor.visit_IsTypeExpr(self)
+
+
+@dataclass
+class MatchCase:
+    def __init__(self, patterns, body):
+        self.patterns = patterns  # liste d'expressions
+        self.body = body
+
+
+@dataclass
+class MatchesExpr:
+    def __init__(self, expr, pattern):
+        self.expr = expr
+        self.pattern = pattern
+
+    def accept(self, visitor):
+        return visitor.visit_MatchesExpr(self)
+
+
+@dataclass
+class MatchExpr:
+    def __init__(self, value, cases, else_branch):
+        self.value = value
+        self.cases = cases
+        self.else_branch = else_branch
+
+    def accept(self, visitor):
+        return visitor.visit_MatchExpr(self)
+
 
 @dataclass
 class IfStmt(Stmt):
@@ -228,13 +401,16 @@ class IfStmt(Stmt):
         self.elif_branches = elif_branches  # Liste de tuples : (condition, block)
         self.else_branch = else_branch
 
+
 @dataclass
 class BreakNode:
     pass
 
+
 @dataclass
 class ContinueNode:
     pass
+
 
 @dataclass
 class TernaryExpr(Expr):
@@ -246,15 +422,17 @@ class TernaryExpr(Expr):
     def __repr__(self):
         return f"TernaryExpr(cond={self.condition}, then={self.then_expr}, else={self.else_expr})"
 
+
 @dataclass
 class SwitchStmt:
     def __init__(self, expression, cases, default_block):
-        self.expression = expression           # Expression de contrôle (ex: une variable)
-        self.cases = cases                     # Liste de tuples (valeur, bloc de statements)
-        self.default_block = default_block     # Bloc de statements par défaut (ou None)
+        self.expression = expression  # Expression de contrôle (ex: une variable)
+        self.cases = cases  # Liste de tuples (valeur, bloc de statements)
+        self.default_block = default_block  # Bloc de statements par défaut (ou None)
 
     def __repr__(self):
         return f"SwitchStmt(expr={self.expression}, cases={self.cases}, default={self.default_block})"
+
 
 @dataclass
 class WhileStmt:
@@ -265,13 +443,16 @@ class WhileStmt:
     def __repr__(self):
         return f"WhileStmt(condition={self.condition}, body={self.body})"
 
+
 @dataclass
 class PostfixIncrement(Expr):
     name: str
 
+
 @dataclass
 class PostfixDecrement(Expr):
     name: str
+
 
 @dataclass
 class ForEachStmt(Stmt):
@@ -280,25 +461,29 @@ class ForEachStmt(Stmt):
         self.iterable_expr = iterable_expr
         self.body = body
 
+
 @dataclass
 class RangeExpr(Expr):
-    from .token_type import TokenType
+    from . token_type import TokenType
     def __init__(self, start, end, operator=TokenType.RANGE, step=None):
         self.start = start
         self.end = end
         self.operator = operator
         self.step = step
 
+
 @dataclass
 class Literal(Expr):
     value: Union[int, float, str, bool]
 
+
 @dataclass
 class ListLiteral(Expr):
-    def __init__(self, elements , line=None, column=None):
+    def __init__(self, elements, line=None, column=None):
         self.elements = elements
         self.line = line  # 🔹 Ajouter la ligne du code source
         self.column = column  # 🔹 Ajouter la ligne du code source
+
 
 @dataclass
 class OktopiosList(list):
@@ -350,6 +535,7 @@ class OktopiosList(list):
     def __str__(self):
         return str(self.elements)
 
+
 # ---- NativeTypes.py ou directement dans interpreter.py ----
 @dataclass
 class OktopiosMap(dict):
@@ -395,7 +581,7 @@ class OktopiosMap(dict):
         elif method_name == "values":
             return self.values()
         elif method_name == "items":
-            #print("debug 1 : length", len(self.entries))
+            # print("debug 1 : length", len(self.entries))
             return self.items()
         elif method_name == "clear":
             return self.clear()
@@ -408,6 +594,7 @@ class OktopiosMap(dict):
     def __repr__(self):
         return repr(self.entries)
 
+
 @dataclass
 class MapUpdateCall:
     def __init__(self, target, updates, line=None, column=None):
@@ -416,6 +603,7 @@ class MapUpdateCall:
         self.line = line  # Optionnel : ligne du code source
         self.column = column  # Optionnel : colonne du code source
 
+
 @dataclass
 class SetLiteral:
     def __init__(self, elements):
@@ -423,6 +611,7 @@ class SetLiteral:
 
     def __repr__(self):
         return f"SetLiteral({self.elements})"
+
 
 @dataclass
 class DictLiteral(dict):
@@ -433,23 +622,28 @@ class DictLiteral(dict):
     def set(self, key, value):
         self.pairs[key] = value
 
+
 @dataclass
 class BlockStmt:
     def __init__(self, statements):
         self.statements = statements
 
+
 @dataclass
 class ExpressionStmt:
     def __init__(self, expression):
         self.expression = expression
+
     def __repr__(self):
         return f"ExpressionStmt({self.expression})"
+
 
 @dataclass
 class ReturnStmt(Stmt):
     def __init__(self, keyword, value):
         self.keyword = keyword  # Token
-        self.value = value      # Expression ou None
+        self.value = value  # Expression ou None
+
 
 @dataclass
 class TryCatchFinallyStmt(Stmt):
@@ -462,33 +656,36 @@ class TryCatchFinallyStmt(Stmt):
     def __repr__(self):
         return f"SwitchStmt(trye={self.try_block}, catch_block={self.catch_block}), finally={self.finally_block}, err={self.error_var})"
 
+
 @dataclass
 class ThrowStmt(Stmt):
     def __init__(self, expr):
         self.expr = expr
+
 
 @dataclass
 class DeleteStmt(Stmt):
     def __init__(self, name):
         self.name = name
 
+
 @dataclass
 class FunDecl:
     def __init__(
-        self,
-        name,
-        params,
-        return_type,
-        body,
-        visibility="public",
-        is_abstract=False,
-        is_override=False,
-        is_static=False,
-        is_short=False,
-        is_invoke=False,
-        parent=None,
-        line=None,
-        column=None
+            self,
+            name,
+            params,
+            return_type,
+            body,
+            visibility="public",
+            is_abstract=False,
+            is_override=False,
+            is_static=False,
+            is_short=False,
+            is_invoke=False,
+            parent=None,
+            line=None,
+            column=None
     ):
         self.name = name
         self.params = params
@@ -499,10 +696,11 @@ class FunDecl:
         self.is_override = is_override
         self.is_static = is_static
         self.is_short = is_short
-        self.is_invoke = is_invoke       # Important pour les interfaces
-        self.parent = parent            # ⚡ Référence vers la classe ou interface parente
+        self.is_invoke = is_invoke  # Important pour les interfaces
+        self.parent = parent  # ⚡ Référence vers la classe ou interface parente
         self.line = line
         self.column = column
+
 
 @dataclass
 class FunctionDeclaration(Stmt):
@@ -514,24 +712,28 @@ class FunctionDeclaration(Stmt):
         self.is_short = is_short
         self.visibility = visibility  # <- ajout
 
+
 @dataclass
 class AnonymousFunction:
     def __init__(self, params, return_type, body):
         self.params = params  # liste de tuples (name, type, is_mutable, default_value)
         self.return_type = return_type
-        self.body = body      # liste d'instructions
+        self.body = body  # liste d'instructions
+
 
 @dataclass
 class LambdaExpr(Expr):
-    def __init__(self, params, body, return_type = None):
-        self.params = params      # liste de noms de paramètres (strings)
-        self.body = body          # expression
+    def __init__(self, params, body, return_type=None):
+        self.params = params  # liste de noms de paramètres (strings)
+        self.body = body  # expression
         self.return_type = return_type
+
 
 @dataclass
 class OktopiosException(Exception):
     def __init__(self, value):
         self.value = value
+
 
 @dataclass
 class NewExpr(Expr):
@@ -539,23 +741,27 @@ class NewExpr(Expr):
         self.class_name = class_name
         self.arguments = arguments
 
+
 @dataclass
 class GetExpr(Expr):
     def __init__(self, object, index):
         self.object = object  # ex: "noms"
-        self.index = index    # ex: 0
+        self.index = index  # ex: 0
+
 
 @dataclass
 class SetExpr(Expr):
     def __init__(self, object, index, value):
-        self.object = object   # ex: une Variable ou une autre expr (arr)
-        self.index = index     # l'expression de l’index (ex: 2 ou i)
-        self.value = value     # la valeur à assigner
+        self.object = object  # ex: une Variable ou une autre expr (arr)
+        self.index = index  # l'expression de l’index (ex: 2 ou i)
+        self.value = value  # la valeur à assigner
+
 
 @dataclass
 class ThisExpr(Expr):
     def __init__(self, keyword):
         self.keyword = keyword  # Le token 'this'
+
 
 @dataclass
 class SuperCallExpr(Expr):
@@ -565,6 +771,7 @@ class SuperCallExpr(Expr):
     method_name : str
     arguments : list[Expr]
     """
+
     def __init__(self, parent_names, method_name, arguments, line, column):
         self.parent_names = parent_names  # None ou liste de strings
         self.method_name = method_name
@@ -572,33 +779,38 @@ class SuperCallExpr(Expr):
         self.line = line
         self.column = column
 
+
 @dataclass
 class SuperForceCallExpr:
     def __init__(self, parents, method_name, arguments, line, column):
-        self.parents = parents        # liste de noms de classes (chaînes)
+        self.parents = parents  # liste de noms de classes (chaînes)
         self.method_name = method_name
-        self.arguments = arguments    # liste d’expressions
+        self.arguments = arguments  # liste d’expressions
         self.line = line
         self.column = column
+
 
 @dataclass
 class AttributeAccess(Expr):
     def __init__(self, obj_expr, name):
         self.obj_expr = obj_expr  # Expression, ex: ThisExpr
-        self.name = name          # Nom de l'attribut
+        self.name = name  # Nom de l'attribut
+
 
 @dataclass
 class AttributeAssignment(Stmt):
     def __init__(self, obj_expr, name, value):
         self.obj_expr = obj_expr  # Expression, ex: ThisExpr
-        self.name = name          # Nom de l'attribut
-        self.value = value        # Expression assignée
+        self.name = name  # Nom de l'attribut
+        self.value = value  # Expression assignée
+
 
 @dataclass
 class CallExpr(Expr):
     def __init__(self, callee, arguments):
-        self.callee = callee       # L'expression à appeler
-        self.arguments = arguments # Liste d'expressions
+        self.callee = callee  # L'expression à appeler
+        self.arguments = arguments  # Liste d'expressions
+
 
 @dataclass
 class FuncCall:
@@ -606,6 +818,7 @@ class FuncCall:
         self.name = name
         self.arguments = arguments
         self.dists = dists
+
 
 @dataclass
 class MethodCall:
@@ -619,6 +832,7 @@ class MethodCall:
     def __repr__(self):
         return f"MethodCall(obj={self.obj}, method={self.method}, args={self.arguments})"
 
+
 @dataclass
 class ModuleFuncCall:
     def __init__(self, module, func, arguments, line=None, column=None):
@@ -631,6 +845,7 @@ class ModuleFuncCall:
     def __repr__(self):
         return f"ModuleFuncCall(obj={self.module}, method={self.func}, args={self.arguments})"
 
+
 @dataclass
 class ActivateStmt(Stmt):
     def __init__(self, class_name):
@@ -639,31 +854,37 @@ class ActivateStmt(Stmt):
     def __repr__(self):
         return f"ActivateStmt(class={self.class_name})"
 
+
 @dataclass
 class Importa:
     module: str
     alias: Optional[str] = None
+
 
 @dataclass
 class FromImport:
     module: str
     names: List[str]  # ["a","b"] ou ["*"]
 
+
 @dataclass
 class ImportStmt:
     def __init__(self, module, names):
-        self.module = module      # ex: "utils"
-        self.names = names        # liste de str ou tuples ("nom", "alias")
+        self.module = module  # ex: "utils"
+        self.names = names  # liste de str ou tuples ("nom", "alias")
+
 
 @dataclass
 class FromImportStmt:
     def __init__(self, module, names):
-        self.module = module      # ex: "utils"
-        self.names = names        # liste de str ou tuples ("nom", "alias")
+        self.module = module  # ex: "utils"
+        self.names = names  # liste de str ou tuples ("nom", "alias")
+
 
 @dataclass
 class UseStmt:
     path: str
+
 
 @dataclass
 class InjectStmt(Stmt):
@@ -674,6 +895,7 @@ class InjectStmt(Stmt):
 
     def __repr__(self):
         return f"InjectStmt({self.modules_with_alias})"
+
 
 @dataclass
 class RuntimeType:
@@ -691,10 +913,11 @@ class RuntimeType:
                 return True
         return False
 
+
 @dataclass
 class LoopStmt(Stmt):
     kind: str
-    var_name: Optional[str] = None        # 👈 ajoute cette ligne
+    var_name: Optional[str] = None  # 👈 ajoute cette ligne
     initializer: Optional[Stmt] = None
     condition: Optional[Expr] = None
     increment: Optional[Stmt] = None
@@ -710,6 +933,7 @@ class LoopStmt(Stmt):
                 f"cond={self.condition!r}, incr={self.increment!r}, iter={self.iterator!r}, "
                 f"mods={self.modifiers!r}, filters={self.filters!r}, actions={self.actions!r}, "
                 f"step={self.step!r}, body={self.body!r})")
+
 
 # SmartLoopStmt : simple alias/concrete class to keep parser names consistent
 @dataclass

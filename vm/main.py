@@ -11,7 +11,7 @@ Usage :
 import sys
 import os
 import json
-
+import time
 from colorama import Fore, Style, init as colorama_init
 from tabulate import tabulate
 
@@ -36,18 +36,53 @@ def _lire_metadata(nom_fichier):
         return f.read()
 
 
+
 def _executer_code(code, chemin_source="<inline>"):
     """Tokenise, parse et interprète du code Oktopios."""
+    start_time = time.perf_counter()  # Mesure précise du temps
+    exit_code = 0
+    error_msg = None
+
     try:
         tokens = list(tokenize(code))
         ast = Parser(tokens).parse()
         Interpreter().interpret(ast)
     except SyntaxError as e:
-        print(Fore.RED + f"[Erreur syntaxique] {e}" + Style.RESET_ALL)
-        sys.exit(1)
+        error_msg = f"[Erreur syntaxique] {e}"
+        print(Fore.RED + error_msg + Style.RESET_ALL)
+        exit_code = 1
+        sys.exit(exit_code)
     except Exception as e:
-        print(Fore.RED + f"[Erreur] {e}" + Style.RESET_ALL)
-        sys.exit(1)
+        error_msg = f"[Erreur] {e}"
+        print(Fore.RED + error_msg + Style.RESET_ALL)
+        exit_code = 1
+        sys.exit(exit_code)
+    finally:
+        end_time = time.perf_counter()
+        execution_time = end_time - start_time
+
+        # Formatage du temps selon sa durée
+        if execution_time < 0.001:
+            time_str = f"{execution_time * 1000:.2f} µs"
+        elif execution_time < 1:
+            time_str = f"{execution_time * 1000:.2f} ms"
+        else:
+            time_str = f"{execution_time:.3f} s"
+
+        # Affichage du résultat
+        print(
+            Fore.LIGHTCYAN_EX + f"\n[Process finished with exit code {exit_code}]"
+            + Style.RESET_ALL
+            + Fore.LIGHTGREEN_EX + " -> "
+            + Style.RESET_ALL
+            + Fore.LIGHTMAGENTA_EX + f"{time_str}"
+            + Style.RESET_ALL
+        )
+
+        # Optionnel : afficher aussi en cas d'erreur
+        if exit_code != 0:
+            print(Fore.YELLOW + f"[!] L'exécution a échoué : {error_msg}" + Style.RESET_ALL)
+            sys.exit(exit_code)
 
 
 # ─── Commandes ────────────────────────────────────────────────────────────────

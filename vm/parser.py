@@ -1,14 +1,12 @@
-import token
 
-
-from .token_type import TokenType
-from .ast_nodes import *
-from colorama import Fore, Style
-from .parse_error import ParseError
-from .symbole_table import SymbolTable
+from . token_type import TokenType
+from . ast_nodes import *
+from  colorama import Fore, Style
+from . parse_error import ParseError
+from . symbole_table import SymbolTable
 
 # Dans parser.py (ou accessible globalement)
-INJECTED_MODULES = set()  # ex: {"math", "io", "file"}
+#INJECTED_MODULES = set()  # ex: {"math", "io", "file"}
 class Parser:
     def __init__(self, tokens, env=None, access_modifier="public"):
         self.tokens = tokens
@@ -28,6 +26,7 @@ class Parser:
         self.current_class = None
         self.interface_loaded = {}  # pour tous les interface local et importé
         self.enume_loaded = {}  # pour tous les enums local et importé
+        self.value_matche_variable = None
 
     def parse(self):
         statements = []
@@ -40,7 +39,15 @@ class Parser:
 
     def declaration(self):
         try:
-            if self.match(TokenType.ABSTRACT):
+            if self.match(TokenType.TENT):
+                return self.tent_declaration()
+            elif self.match(TokenType.TEN):
+                return self.ten_declaration()
+            elif self.match(TokenType.INTENTION):
+                return self.intention_statement()
+            elif self.match(TokenType.TENT_RANDOM):
+                return self.tent_random_statement()
+            elif self.match(TokenType.ABSTRACT):
                 return self.parse_class_decl(type_class=TokenType.ABSTRACT)
             elif self.match(TokenType.CLASS):
                 clss = self.parse_class_decl(type_class=TokenType.CLASS)
@@ -64,7 +71,10 @@ class Parser:
     # Déclaration de variable
     # --------------------------
     def var_decl(self, is_const=False, access_modifier="public", is_static=False):
-        id = self.consume(TokenType.ID, Fore.CYAN + "Nom de variable attendu" + Style.RESET_ALL)
+        if self.check(TokenType.ID) or self.check(TokenType.MODE):
+            id = self.advance()
+        else:
+            id = self.consume(TokenType.ID, Fore.CYAN + "Nom de variable attendu" + Style.RESET_ALL)
         name = id.value
 
         if self.match(TokenType.COLON):
@@ -72,6 +82,7 @@ class Parser:
         else:
             type_ = None
         value = None
+
         if self.match(TokenType.EQ):
             value = self.expression()
 
@@ -112,6 +123,33 @@ class Parser:
     #dans le parser.py
     # Déclaration de classe avec héritage multiple
     # --------------------------
+    def tent_declaration(self):
+        self.consume(TokenType.CLASS, "Expected 'class' after tent.")
+        return TentClass(self.parse_class_decl(type_class=TokenType.CLASS))
+
+    def ten_declaration(self):
+        self.consume(TokenType.CLASS, "Expected 'class' after ten.")
+        return TenClass(self.parse_class_decl(type_class=TokenType.CLASS))
+
+    def intention_statement(self):
+        name = self.consume(TokenType.ID, "Expected intention name.").value
+        args = self.parse_pieuvre_call_args()
+        return IntentionStmt(name, args)
+
+    def tent_random_statement(self):
+        name = self.consume(TokenType.ID, "Expected tentRandom action name.").value
+        args = self.parse_pieuvre_call_args()
+        return TentRandomStmt(name, args)
+
+    def parse_pieuvre_call_args(self):
+        self.consume(TokenType.LPAREN, "Expected '(' after pieuvre action name.")
+        args = []
+        if not self.check(TokenType.RPAREN):
+            args.append(self.expression())
+            while self.match(TokenType.COMMA):
+                args.append(self.expression())
+        self.consume(TokenType.RPAREN, "Expected ')' after pieuvre action arguments.")
+        return args
     def parse_id_list(self, keyword):
         """
         Accepte: extends Animal  OU  extends[Animal, Autre]
@@ -191,8 +229,15 @@ class Parser:
             is_static_fun_or_var = self.match(TokenType.STATIC)
 
 
+            # Pieuvre blocks
+            if self.match(TokenType.HEART):
+                self.consume(TokenType.LBRACE, "Attendu '{' apres heart")
+                members.append(HeartBlock(self.block()))
+            elif self.match(TokenType.CORE):
+                self.consume(TokenType.LBRACE, "Attendu '{' apres core")
+                members.append(CoreBlock(self.block()))
             # Variables
-            if self.match(TokenType.VAR):
+            elif self.match(TokenType.VAR):
                 varde = self.var_decl(False, access_modifier=access_modifier, is_static=is_static_fun_or_var)
                 members.append(varde)
                 self.class_loaded.add_member(class_name, varde)
@@ -501,6 +546,36 @@ class Parser:
             self.current = saved_current
         return expr
 
+    def expression_current_line(self):
+        start_line = self.peek().line
+        expr_tokens = []
+        depth = 0
+        tok = self.peek()
+
+        while not self.is_at_end():
+            tok = self.peek()
+            if depth == 0 and (tok.type == TokenType.RBRACE or tok.line != start_line):
+                break
+            if tok.type == TokenType.LPAREN:
+                depth += 1
+            elif tok.type == TokenType.RPAREN:
+                depth -= 1
+            expr_tokens.append(self.advance())
+
+        if not expr_tokens:
+            self.error(tok, Fore.CYAN + f"Expression attendue" + Style.RESET_ALL)
+
+        saved_tokens = self.tokens
+        saved_current = self.current
+        self.tokens = expr_tokens + [Token(TokenType.EOF, '', tok.line, tok.column)]
+        self.current = 0
+        try:
+            expr = self.expression()
+        finally:
+            self.tokens = saved_tokens
+            self.current = saved_current
+        return expr
+
     def try_stmt(self):
         self.consume(TokenType.TRY, Fore.CYAN +"Attendu 'try'"+ Style.RESET_ALL)
         self.consume(TokenType.LBRACE, Fore.CYAN +"Attendu '{' après 'try'"+ Style.RESET_ALL)
@@ -557,7 +632,8 @@ class Parser:
         self.consume(TokenType.IF, Fore.CYAN + "'if' attendu" + Style.RESET_ALL)
         self.consume(TokenType.LPAREN, Fore.CYAN + "'(' attendu après 'if'" + Style.RESET_ALL)
         condition = self.expression()
-        self.consume(TokenType.RPAREN, Fore.CYAN + "')' attendu après la condition" + Style.RESET_ALL)
+        self.consume(TokenType.RPAREN, Fore.CYAN + "')' attendu après la condition."+ Style.RESET_ALL+
+                                                   Fore.YELLOW +"\nprobable que vous aviez mal saisi votre Condition" + Style.RESET_ALL)
 
         # ✅ Si le prochain token est une '{', on lit un bloc
         if self.check(TokenType.LBRACE):
@@ -593,6 +669,7 @@ class Parser:
 
         return IfStmt(condition, then_branch, elif_branches, else_branch)
 
+#-----------------------------------------
     def expression(self):
         expr = self.parse_ternary()
         while self.match(TokenType.RANGE):
@@ -620,20 +697,165 @@ class Parser:
 
     def parse_equality(self):
         expr = self.parse_comparison()
-        while self.match(TokenType.IN, TokenType.NOT_IN):
+        #if self.match(TokenType.NOT):
+        #    if self.match(TokenType.IN):
+        #        operator = TokenType.NOT_IN
+        #        right = self.parse_term()
+        #        return BinaryOp(expr, operator, right)
+
+        while self.match(TokenType.IN):
             operator = self.previous()
+            expr = self.value_matche_variable if self.value_matche_variable != None else expr
             right = self.parse_comparison()
             expr = BinaryOp(left=expr, operator=operator, right=right)
         return expr
 
     def parse_comparison(self):
         expr = self.parse_term()
-        # Tu peux plus tard y ajouter >, <, etc.
-        while self.match(TokenType.GT, TokenType.GE, TokenType.LT, TokenType.LE, TokenType.EQEQ, TokenType.NE):
+        # --- gestion spéciale : IS EMPTY / IS NOT EMPTY ---
+        if self.match(TokenType.BETWEEN):
+            lower = self.parse_term()
+            self.consume(TokenType.AND, "Oups 'and' apres lower bound.")
+            upper = self.parse_term()
+            expr = self.value_matche_variable if self.value_matche_variable != None else expr
+            return BetweenExpr(expr, lower, upper)
+        if self.match(TokenType.IS):
+            # --- IS TYPE ---
+            if self.match(
+                    TokenType.INT,
+                    TokenType.STRING,
+                    TokenType.FLOAT,
+                    TokenType.BOOL
+            ):
+                type_token = self.previous()
+                expr = self.value_matche_variable if self.value_matche_variable != None else expr
+                return IsTypeExpr(expr, type_token)
+            elif self.match(TokenType.NOT):
+                if self.match(TokenType.IS_EMPTY):
+                    expr = self.value_matche_variable if self.value_matche_variable != None else expr
+                    return IsEmptyExpr(expr, negate=True)
+            elif self.match(TokenType.IS_EMPTY):
+                expr = self.value_matche_variable if self.value_matche_variable != None else expr
+                return IsEmptyExpr(expr, negate=False)
+            else:
+                # cas normal : x is y
+                operator = self.previous()
+                right = self.parse_term()
+                expr = self.value_matche_variable if self.value_matche_variable != None else expr
+                return BinaryOp(expr, operator, right)
+
+        # --- gestion spéciale :  NOT ... ---
+        if self.match(TokenType.NOT):
+            if self.match(TokenType.IN):
+                operator = TokenType.NOT_IN
+                right = self.parse_term()
+                expr = self.value_matche_variable if self.value_matche_variable != None else expr
+                return BinaryOp(expr, operator, right)
+            if self.match(TokenType.IS_EMPTY):
+                expr = self.value_matche_variable if self.value_matche_variable != None else expr
+                return IsEmptyExpr(expr, negate=True)
+            if self.match(TokenType.IS_LIKE):
+                operator = TokenType.NOT_LIKE
+                right = self.parse_term()
+                expr = self.value_matche_variable if self.value_matche_variable != None else expr
+                return BinaryOp(left=expr, operator=operator, right=right)
+            if self.match(TokenType.MATCHES):
+                pattern = self.parse_term()
+                expr = self.value_matche_variable if self.value_matche_variable != None else expr
+                return MatchesExpr(expr, pattern)
+
+        if self.match(TokenType.MATCHES):
+            pattern = self.parse_term()
+            expr = self.value_matche_variable if self.value_matche_variable != None else expr
+            return MatchesExpr(expr, pattern)
+
+        # opérateurs classiques
+        while self.match(
+                TokenType.GT,
+                TokenType.GE,
+                TokenType.LT,
+                TokenType.LE,
+                TokenType.EQEQ,
+                TokenType.NE,
+                TokenType.IS_LIKE,
+                TokenType.OR
+        ):
             operator = self.previous()
             right = self.parse_term()
-            expr = BinaryOp(left=expr, operator=operator, right=right)
+            expr = self.value_matche_variable if self.value_matche_variable != None else expr
+            expr = BinaryOp(expr, operator, right)
+
         return expr
+
+    def parse_match_expr(self):
+        value = self.expression()
+        self.consume(
+            TokenType.ARROW, Fore.YELLOW +f"Oups "+ Style.RESET_ALL +
+                             Fore.RED +f"'=>'"+ Style.RESET_ALL +
+                             Fore.LIGHTWHITE_EX +f" apres match value"+ Style.RESET_ALL
+        )
+        self.consume(TokenType.LBRACE, "Oups '{' apres match expression.")
+        cases = []
+        else_branch = None
+
+        while not self.check(TokenType.RBRACE) and not self.is_at_end():
+            if self.match(TokenType.ELSE):
+                self.consume(TokenType.ARROW, "Oups '=>' apres 'else'")
+                else_branch = self.expression_current_line()
+                break
+
+            # Patterns
+            patterns = []
+            # Premier pattern
+            patterns.append(self.parse_match_pattern())
+
+            while self.match(TokenType.COMMA):
+                patterns.append(self.parse_match_pattern())
+            while self.match(TokenType.AND):
+                patterns.append(self.expression())
+
+            self.consume(TokenType.ARROW, "Oups '=>' apres match case")
+
+            body = self.expression_current_line()
+            cases.append(MatchCase(patterns, body))
+
+        self.consume(TokenType.RBRACE, "Oups '}' apres match block")
+
+        if else_branch is None:
+            self.error(self.peek(), "Match expression must have an else branch.")
+
+        return MatchExpr(value, cases, else_branch)
+
+    def parse_match_pattern(self):
+        if self.match(TokenType.IN):
+            base_pattern = InPattern(self.expression())
+        elif self.match(TokenType.IS_LIKE):
+            base_pattern = LikePattern(self.expression())
+        elif self.match(TokenType.BETWEEN):
+            lower = self.parse_term()
+            self.consume(TokenType.AND, "Oups 'and' apres lower bound.")
+            upper = self.parse_term()
+            base_pattern = BetweenPattern(lower, upper)
+        elif self.match(TokenType.MATCHES):
+            base_pattern = RegexPattern(self.parse_term())
+        elif self.match(TokenType.IS):
+            if self.match(TokenType.INT, TokenType.STRING, TokenType.FLOAT, TokenType.BOOL):
+                base_pattern = TypePattern(self.previous())
+            else:
+                self.error(self.peek(), "Type attendu apres 'is' dans match case")
+        else:
+            expr = self.expression()
+            if isinstance(expr, RangeExpr):
+                base_pattern = RangePattern(expr.start, expr.end, expr.step)
+            else:
+                base_pattern = ValuePattern(expr)
+
+        # --- Guard support ---
+        if self.match(TokenType.IF):
+            guard_expr = self.expression()
+            return GuardedPattern(base_pattern, guard_expr)
+
+        return base_pattern
 
     def parse_term(self):
         expr = self.parse_factor()
@@ -761,6 +983,8 @@ class Parser:
             return SuperForceCallExpr(parents=parent_names, method_name=method_name, arguments=args, line=token.line, column=token.column)
 
             #return SuperForceCallExpr(parents, method_name, args, token.line, token.column)
+        elif self.match(TokenType.IS_MATCHES):
+            return self.parse_match_expr()
         elif self.match(TokenType.LPAREN):
             expr = self.expression()
             #print("expr Parentaise", expr)
@@ -787,8 +1011,6 @@ class Parser:
         elif self.match(TokenType.FSTRING):
             raw_value = self.previous().value
             return FStringStmt(raw_value)
-        #elif self.match(TokenType.STR):
-        #    return Literal(self.previous().value)
         elif self.match(TokenType.ID):
             token = self.previous()
             expr = Variable(self.previous().value, token.line, token.column)
@@ -899,6 +1121,7 @@ class Parser:
                 break
         return expr
 
+#----------------------------------------------
     def parse_dict(self):
         pairs = []
         if not self.check(TokenType.RBRACE):
@@ -960,13 +1183,6 @@ class Parser:
         self.consume(TokenType.RBRACKET,
                      Fore.CYAN + "']' attendu à la fin de l’ensemble ou du dictionnaire" + Style.RESET_ALL)
         return SetLiteral(elements)
-
-    # à suprimer
-    def parse_mapUpdate_call(self):
-        target = self.expression()  # variable cible
-        self.consume(TokenType.COMMA, "',' attendu après la cible")
-        dict_literal = self.parse_mapUpdate()  # ici on attend une structure { ... }
-        return MapUpdateCall(target, dict_literal)
 
     def fun_expr(self):
         name = None  # 🔒 Fonction anonyme
@@ -1615,7 +1831,7 @@ class Parser:
     def parse_from_import(self):
         # on a consommé 'from' avant d'appeler
         module_name = self.consume(TokenType.ID, "Nom de module attendu après 'from'").value
-        self.consume(TokenType.IMPORT, "Attendu 'import' après 'from <module>'")
+        self.consume(TokenType.IMPORT, "Attendu 'import' après 'from . <module>'")
         if self.match(TokenType.STAR):
             return FromImportStmt(module=module_name, names=["*"])
         names = []
@@ -1625,7 +1841,7 @@ class Parser:
 
             # supporte "as alias"
             if self.match(TokenType.AS):
-                alias = self.consume(TokenType.ID, "Expected alias").value
+                alias = self.consume(TokenType.ID, "Oups alias").value
 
             names.append((name, alias) if alias else name)
             if not self.match(TokenType.COMMA):
