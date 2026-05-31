@@ -1,10 +1,10 @@
-﻿# Oktopios
+﻿# Oktopios 🐙 
 
 Oktopios est un langage de programmation expérimental, moderne et expressif, interprété en Python. Il combine une syntaxe lisible, un modèle orienté objet, des fonctions avancées, des modules natifs et une architecture bio-inspirée appelée architecture pieuvrique.
 
 L'objectif du projet est de construire un langage capable d'orchestrer des unités d'exécution locales comme des tentacules autour d'un cerveau central. Oktopios n'est donc pas seulement un langage de script : c'est une base pour explorer l'exécution distribuée interne, les matrices, l'adaptation IA et les systèmes modulaires.
 
-## Vision
+## Vision 🐙 
 
 Oktopios s'inspire de l'organisation d'une pieuvre :
 
@@ -26,7 +26,7 @@ intention
 tentRandom
 ```
 
-## Installation
+## Installation 🐙 
 
 ### Depuis PyPI
 
@@ -41,7 +41,7 @@ okp --version
 okp 'print("Bonjour Oktopios")'
 ```
 
-### Depuis les sources
+### Depuis les sources 🐙 
 
 ```bash
 git clone https://github.com/ALISOULEMOUANWIYA/oktopios.git
@@ -49,7 +49,7 @@ cd oktopios
 pip install -e .
 ```
 
-### Windows
+### Windows 🐙
 
 ```powershell
 pip install oktopios
@@ -59,7 +59,7 @@ okp --version
 
 Si la commande `okp` n'est pas reconnue, ouvrez un nouveau terminal ou ajoutez le dossier Scripts de Python au `PATH`.
 
-### Linux et macOS
+### Linux et macOS 🐙
 
 ```bash
 pip install oktopios
@@ -74,7 +74,7 @@ bash installers/linux/install.sh
 bash installers/macos/install.sh
 ```
 
-### Android avec Termux
+### Android avec Termux 🐙
 
 Installez Termux depuis F-Droid, puis :
 
@@ -84,7 +84,7 @@ pip install oktopios
 okp --version
 ```
 
-### iPhone ou iPad avec iSH
+### iPhone ou iPad avec iSH 🐙
 
 ```sh
 apk update
@@ -93,7 +93,7 @@ pip install oktopios
 okp --version
 ```
 
-## Utilisation rapide
+## Utilisation rapide 🐙
 
 ```bash
 # Exécuter un fichier
@@ -109,16 +109,16 @@ okp --repl
 okp --help
 ```
 
-## Premier programme
+## Premier programme 🐙
 
 ```okp
 val nom: string = "Oktopios"
 print("Bonjour " + nom)
 ```
 
-## Syntaxe de base
+## Syntaxe de base 🐙 
 
-### Variables
+### Variables 🐙 
 
 ```okp
 val x: int = 10          // constante
@@ -126,7 +126,7 @@ var compteur: int = 0    // variable mutable
 var message = "Salut"    // type inféré
 ```
 
-### Fonctions
+### Fonctions 🐙 
 
 ```okp
 fun add(a: int, b: int): int {
@@ -136,7 +136,7 @@ fun add(a: int, b: int): int {
 print(add(2, 3))
 ```
 
-### Surcharge
+### Surcharge 🐙 
 
 ```okp
 fun calcule(a: int, b: int): int {
@@ -148,14 +148,14 @@ fun calcule(a: int, b: int, c: int): int {
 }
 ```
 
-### Lambdas
+### Lambdas 🐙 
 
 ```okp
 val doubler = lambda(x: int) => x * 2
 print(doubler(5))
 ```
 
-### Conditions
+### Conditions 🐙 
 
 ```okp
 if (compteur > 10) {
@@ -167,7 +167,7 @@ if (compteur > 10) {
 }
 ```
 
-### Boucles
+### Boucles 🐙 
 
 ```okp
 for (var i: int = 0; i < 5; i += 1) {
@@ -180,7 +180,7 @@ for (nom in noms) {
 }
 ```
 
-## Classes et objets
+## Classes et objets 🐙 
 
 ```okp
 class Animal {
@@ -199,7 +199,7 @@ var chat = new Animal("Mimi")
 print(chat.parler())
 ```
 
-Oktopios prend aussi en charge progressivement :
+Oktopios 🐙 prend aussi en charge progressivement :
 
 - interfaces ;
 - classes abstraites ;
@@ -210,7 +210,7 @@ Oktopios prend aussi en charge progressivement :
 - méthodes statiques ;
 - visibilité `public`, `private`, `protected`, `global`.
 
-## Pattern matching avec `__matches__`
+## Pattern matching avec `__matches__` 🐙 
 
 `__matches__` permet de comparer une valeur contre plusieurs formes. Il peut retourner plusieurs résultats si plusieurs cas sont vrais.
 
@@ -245,7 +245,7 @@ Patterns supportés :
 - type : `is int`, `is string`, `is float`, `is bool` ;
 - fallback : `else`.
 
-## Architecture pieuvrique
+## Architecture pieuvrique 🐙 
 
 Oktopios introduit une architecture bio-inspirée pour organiser l'exécution.
 
@@ -276,7 +276,7 @@ intention alert("Danger")
 tentRandom alert("Ping")
 ```
 
-Dans ce modèle :
+Dans ce modèle 🐙 :
 
 - `tent class` déclare le cerveau central ;
 - `heart` contient la configuration centrale ;
@@ -287,11 +287,11 @@ Dans ce modèle :
 
 Cette partie est en évolution. Le but est d'aller vers un vrai moteur interne de routage, d'adaptation et d'exécution distribuée.
 
-## Matrices
+## Matrices 🐙 
 
 Oktopios possède un module `matrix` pour manipuler des structures denses ou clairsemées.
 
-### Matrice clairsemée
+### Matrice clairsemée 🐙 
 
 Utile pour les graphes, réseaux, liens entre cellules ou parcours BFS/DFS.
 
@@ -304,7 +304,7 @@ matrix.link(m, [0, 0], m, [1, 1])
 var chemin = matrix.traverse(m, [0, 0], "bfs")
 ```
 
-### Matrice dense
+### Matrice dense 🐙 
 
 Utile pour les calculs mathématiques, l'IA et les opérations numériques.
 
@@ -320,7 +320,7 @@ var T = matrix.tensor(A, B)
 var R = matrix.contract(A, B, 0, 1)
 ```
 
-## Modules natifs
+## Modules natifs 🐙 
 
 Oktopios utilise `inject` pour charger des modules natifs.
 
@@ -344,7 +344,7 @@ Modules et familles de fonctionnalités disponibles ou en évolution :
 - coeur `heart` ;
 - modules adaptatifs.
 
-## Gestion des erreurs
+## Gestion des erreurs 🐙
 
 ```okp
 try {
@@ -356,7 +356,7 @@ try {
 }
 ```
 
-## Commandes CLI
+## Commandes CLI 🐙
 
 | Commande | Description |
 |---|---|
@@ -370,7 +370,7 @@ try {
 | `okp --doc` | Affiche la documentation intégrée |
 | `okp --init NomProjet` | Crée un projet Oktopios |
 
-## Structure du projet
+## Structure du projet 🐙
 
 ```text
 vm/
@@ -390,7 +390,7 @@ tests/                    # tests et exemples
 docs/                     # documentation
 ```
 
-## État du projet
+## État du projet 🐙
 
 Oktopios est encore expérimental. Certaines fonctionnalités sont stables, d'autres sont en cours de conception ou d'intégration. Le langage évolue rapidement autour de trois axes :
 
