@@ -150,6 +150,7 @@ class Parser:
                 args.append(self.expression())
         self.consume(TokenType.RPAREN, "Expected ')' after pieuvre action arguments.")
         return args
+
     def parse_id_list(self, keyword):
         """
         Accepte: extends Animal  OU  extends[Animal, Autre]

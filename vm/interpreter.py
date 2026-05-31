@@ -170,6 +170,7 @@ class Interpreter:
             return None
         method = tentacle.get_method_bound(name, arg_count=len(args))
         return method.call(self, args)
+
     # ---- EXECUTION ----
     def execute(self, stmt: Stmt):
         #print(f"[DEBUG EXECUTE] type = {type(stmt).__name__}")
