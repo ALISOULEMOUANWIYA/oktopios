@@ -20,6 +20,7 @@ KEYWORDS = {
 
     "true": TokenType.BOOLVAL,
     "false": TokenType.BOOLVAL,
+    "null": TokenType.NULLVAL,
     "and": TokenType.AND,
 
     "or": TokenType.OR, # (pas encors implementer)
@@ -30,6 +31,10 @@ KEYWORDS = {
     "not": TokenType.NOT,  # pour neguer une condition
     "__matches__": TokenType.IS_MATCHES,
     "matches": TokenType.MATCHES,
+    "neuron_loop": TokenType.NEURON_LOOP,
+    "__matches_db__": TokenType.IS_MATCHES_DB,
+    "threshold": TokenType.THRESHOLD,
+    "autocreate": TokenType.AUTOCREATE,
     "between": TokenType.BETWEEN,
 
     "if": TokenType.IF,
@@ -81,6 +86,11 @@ KEYWORDS = {
 
     "step": TokenType.STEP,
     "waitUntil": TokenType.WAIT_UNTIL,
+    "count": TokenType.COUNT,
+    "rows": TokenType.ROWS,
+    "cols": TokenType.COLS,
+    "amplitude": TokenType.AMPLITUDE,
+    "parallel": TokenType.PARALLEL,
 
 
     "try": TokenType.TRY,
@@ -264,7 +274,16 @@ def tokenize(code):
         elif kind == "NUMBER":
             raw_tokens.append(Token(TokenType.NUMBER, float(value) if "." in value else int(value), line_num, column))
         elif kind == "STRING":
-            value = bytes(value[1:-1], "utf-8").decode("unicode_escape")
+            # ⚠️ bytes(..., "utf-8").decode("unicode_escape") interprète les
+            # séquences d'échappement (\n, \t...) MAIS casse tout caractère
+            # UTF-8 multi-octets (un accent comme "é" devenait "Ã©") : il
+            # encode le texte en UTF-8 puis le décode comme si chaque octet
+            # était un caractère Latin-1 séparé. Le aller-retour ci-dessous
+            # est l'idiome standard pour garder les deux comportements :
+            # ré-encoder le résultat en Latin-1 ramène les octets UTF-8
+            # d'origine, qu'on peut alors décoder correctement en UTF-8.
+            raw = value[1:-1]
+            value = raw.encode("utf-8").decode("unicode_escape").encode("latin-1").decode("utf-8")
             raw_tokens.append(Token(TokenType.STR, value, line_num, column))
         elif kind in TokenType.__members__:
             if kind == "PIPE":

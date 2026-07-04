@@ -2,12 +2,12 @@
 test_interpreter.py — Tests d'intégration de l'interpréteur Oktopios.
 """
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vm"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
-from lexer import tokenize
-from parser import Parser
-from interpreter import Interpreter
+from vm.lexer import tokenize
+from vm.parser import Parser
+from vm.interpreter import Interpreter
 
 
 def run(code: str, capsys=None):

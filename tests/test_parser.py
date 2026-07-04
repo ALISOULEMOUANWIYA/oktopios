@@ -2,12 +2,12 @@
 test_parser.py — Tests unitaires du parseur Oktopios.
 """
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vm"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
-from lexer import tokenize
-from parser import Parser
-from ast_nodes import (
+from vm.lexer import tokenize
+from vm.parser import Parser
+from vm.ast_nodes import (
     Program, VarDecl, FunDecl, ClassDeclaration,
     IfStmt, WhileStmt, ForEachStmt, BlockStmt,
     ReturnStmt, PrintStmt, Literal, Variable, BinaryOp, FuncCall
@@ -96,7 +96,7 @@ def test_if_else():
     ast = parse("if(x > 0) { print(1) } else { print(0) }")
     node = ast.body[0]
     assert isinstance(node, IfStmt)
-    assert node.else_body is not None
+    assert node.else_branch is not None
 
 
 def test_if_elif_else():

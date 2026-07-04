@@ -92,7 +92,7 @@ def cmd_version():
     if version:
         print(Fore.YELLOW + f"Oktopios version {version.strip()}" + Style.RESET_ALL)
     else:
-        print(Fore.YELLOW + "Oktopios version 0.0.1" + Style.RESET_ALL)
+        print(Fore.YELLOW + "Oktopios version 0.1.0" + Style.RESET_ALL)
 
 
 def cmd_aide():

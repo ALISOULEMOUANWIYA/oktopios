@@ -95,7 +95,7 @@ class RuntimeInstance(RuntimeObjectInstance):
                 self.super_instances[parent_name] = RuntimeInstance(parent_decl, constructor_args=None, interpreter=interpreter)
 
         # --- 2) Initialisation des champs (Field) définis localement dans klass (non-static) ---
-        from .ast_nodes import VarDecl
+        from .ast_nodes import VarDecl, default_value_for_type
         for m in getattr(klass, "members", []):
             if isinstance(m, VarDecl):
                 # si variable marquée static (attribut statique) : la stocker dans klass.static_fields
@@ -113,6 +113,8 @@ class RuntimeInstance(RuntimeObjectInstance):
                 field = Field(m)
                 if field.value is not None and interpreter is not None and not isinstance(field.value, (int, float, str, bool, list)):
                     field.value = interpreter.evaluate(field.value)
+                elif field.value is None:
+                    field.value = default_value_for_type(getattr(m, "type_", None))
                 self.fields[m.name] = field
 
 

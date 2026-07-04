@@ -34,6 +34,16 @@ tentRandom
 pip install oktopios
 ```
 
+L'installation de base reste légère. Pour `DataImport`, `Recognize` ou
+`IAModule`, installez l'extra correspondant :
+
+```bash
+pip install oktopios[data]          # json/excel/sql/mysql
+pip install oktopios[recognition]   # reconnaissance faciale/vocale
+pip install oktopios[ia]            # Ollama/DeepSeek/StarCoder
+pip install oktopios[all]           # tout d'un coup
+```
+
 Après installation :
 
 ```bash
@@ -126,6 +136,30 @@ var compteur: int = 0    // variable mutable
 var message = "Salut"    // type inféré
 ```
 
+**Déclarations multiples** (deux formes) :
+
+```okp
+var x, y, a, b, c : int = 1, 2, 3, 4, 5   // type partagé, valeurs appariées par position
+var x = 1, y = 2, a = 3                    // chaque variable a sa propre valeur/type inféré
+```
+
+**Valeur par défaut selon le type**, si rien n'est assigné :
+
+```okp
+var n: int      // 0
+var f: float    // 0.0
+var b: bool     // false
+var tab: int[]  // []
+var d: dict     // {}
+var s: string   // null
+```
+
+**Le littéral `null`** existe aussi directement :
+
+```okp
+var x = null
+```
+
 ### Fonctions 🐙 
 
 ```okp
@@ -178,6 +212,34 @@ var noms: string[] = ["Awa", "Mouanwiya", "Ali"]
 for (nom in noms) {
     print(nom)
 }
+```
+
+**Boucles spéciales**, chacune avec sa propre sémantique (pas de simples variantes de `for`) :
+
+```okp
+filterLoop(n in nums): where(n > 4) { print(n) }
+
+sortLoop(n in nums): by(n) order desc { print(n) }
+
+permuteLoop(n in nums): using(partenaire) mode(stable) { print(n + " / " + partenaire) }
+// modes : stable, reverse, cycle, chaos, noise, random
+
+circularLoop(n in nums): step(1) until(total > 50) { total = total + n }
+
+filterWhile(n in nums): whenever(n > 3) check(n < 8) { print(n) }
+
+// --- parcours géométriques (bio-inspirés) ---
+spiral cell in matrice { print(cell) }                    // depuis le centre, sens horaire (défaut)
+spiral cell in matrice from top_left counterclockwise { }
+spiral (x, y) in matrice { print(x + "," + y) }           // indices plutôt que valeurs
+
+wave row in matrice { print(row) }                         // zig-zag par ligne (défaut)
+wave col in matrice by column { print(col) }
+wave item in liste amplitude 3 { print(item) }             // zig-zag sur liste plate
+
+sectors part in liste count 8 { print(part) }              // découpage en 8 morceaux
+sectors part in liste count 8 parallel { print(part) }      // chaque secteur sur un vrai thread
+sectors zone in image rows 4 cols 4 { process(zone) }       // découpage matriciel en blocs
 ```
 
 ## Classes et objets 🐙 
@@ -245,18 +307,119 @@ Patterns supportés :
 - type : `is int`, `is string`, `is float`, `is bool` ;
 - fallback : `else`.
 
-## Architecture pieuvrique 🐙 
+## Mémoire associative avec `neuron_loop` / `__matches_db__` 🐙 
 
-Oktopios introduit une architecture bio-inspirée pour organiser l'exécution.
+`__matches__` compare une valeur ponctuelle. `__matches_db__` interroge une
+vraie base mémoire persistante, inspirée du système nerveux distribué d'une
+pieuvre (5 catégories : alpha/beta/gamma/ohm/dzêta).
 
 ```okp
-tent class Brain {
-    heart {
-        var mode: string = "defense"
+neuron_loop ElementorDB {
+    neuro_1{
+        enter{ alpha: 1 },
+        memory{ alpha{ ref_el_1{ id: 1 => data: { "forme": "ronde" } } } },
+        elementor{ alpha{ ref_el_1{ id: 1 => data: { "forme": "ronde" } } } },
+        out_6{ target: neuro_2  alpha: 6 }
     }
+}
 
+val r = "ronde" __matches_db__ ElementorDB { "forme": "ronde" }
+print(r)
+
+// Tous les verbes passent par la MÊME étape de correspondance avant d'agir
+val r2 = "carre" __matches_db__ ElementorDB insert alpha { "forme": "carre" }
+val r3 = "ronde" __matches_db__ ElementorDB update { "forme": "ronde" } set { "song": "aigu" }
+val r4 = "ronde" __matches_db__ ElementorDB delete { "forme": "ronde" }
+val r5 = "aigu" __matches_db__ ElementorDB reflexion { "song": "aigu" }  // associatif, seuil=1
+
+// Persistance disque
+inject MatchesDB
+MatchesDB.save("ElementorDB", "sauvegarde.json")
+MatchesDB.load("ElementorDB", "sauvegarde.json")
+```
+
+`threshold N` ajuste le seuil de déclenchement (par défaut : toutes les
+conditions du motif). `target:` dans un `out_X{}` relie un neurone au
+suivant : un signal qui dépasse le seuil se propage le long de cette chaîne
+(reporté dans `propagation` du résultat) tant que le neurone suivant répond
+lui aussi — sinon il s'arrête là.
+
+## Moteur adaptatif et IA externe
+
+```okp
+inject AdaptiveEngine
+inject IAModule
+
+tent class Brain {
     core {
-        print("System Ready")
+        fun agir(decision: string): string { return "ACTION: " + decision }
+    }
+}
+
+val r = AdaptiveEngine.run("charge serveur elevee", ["scale_up", "scale_down", "ne_rien_faire"])
+print(r)   // decision, raison, feedback, ia_response...
+print(AdaptiveEngine.recall("charge serveur elevee"))   // rappelle les expériences passées
+```
+
+`AdaptiveEngine.run` enchaîne IAModule → analyse → décision → action
+(`agir()` dans `core{}`/`director{}`) → feedback → apprentissage (mémorisé
+dans un `neuron_loop` dédié). Si l'IA est indisponible, une heuristique de
+repli décide quand même — jamais de blocage.
+
+DeepSeek et StarCoder sont open source et tournent directement via
+[Ollama](https://ollama.com), gratuitement, sans clé :
+
+```bash
+ollama pull llama3
+ollama pull deepseek-r1
+ollama pull starcoder2
+ollama serve
+```
+
+```okp
+print(IAModule.ollama("Bonjour"))
+print(IAModule.deepseek("Bonjour"))      // route vers Ollama si pas de clé fournie
+print(IAModule.starcoder("Bonjour"))     // idem
+print(IAModule.callWithFallback("Bonjour", backends))   // cascade de secours
+IAModule.ollamaStream("Raconte", surChaqueMorceau)        // streaming avec callback
+```
+
+## Connecteurs de données et reconnaissance
+
+```okp
+inject DataImport
+var lignes = DataImport.readJson("data.json")     // aussi : readExcel, readSQL, readMySQL
+DataImport.writeJson("sortie.json", lignes)         // aussi : writeExcel, writeSQL, writeMySQL
+
+inject Recognize
+print(Recognize.textSimilarity("ronde", "ronde "))
+var empreinte = Recognize.facial("photo.jpg")        // détection + empreinte hors-ligne
+var voix = Recognize.vocal("audio.wav")              // empreinte MFCC hors-ligne
+```
+
+Ces connecteurs nécessitent les extras correspondants :
+`pip install oktopios[data]`, `[recognition]` ou `[ia]` (ou `[all]` pour tout).
+
+## Architecture pieuvrique
+
+Oktopios introduit une architecture bio-inspirée pour organiser l'exécution.
+Chaque `heart{}` est **isolé** des autres (ses fonctions/variables ne
+collisionnent jamais entre eux), tandis que `core{}` est le **noyau
+partagé** que tous les hearts peuvent lire.
+
+```okp
+inject Heart
+inject Core
+inject Tentacle
+inject Scheduler
+
+tent class Brain {
+    core {
+        var version: string = "1.0"
+        fun identite(): string { return "Brain v" + version }
+    }
+    heart "ExecutionFlow" {
+        fun statut(): string { return "pret : " + identite() }
     }
 }
 
@@ -266,26 +429,59 @@ ten class Arm1 {
     }
 }
 
-ten class Arm2 {
-    fun alert(msg: string) {
-        print("Arm2 received " + msg)
+intention alert("Danger")          // diffuse à toutes les tentacules
+tentRandom alert("Ping")           // une seule, au hasard
+
+Tentacle.create("Arm1")             // crée dynamiquement une tentacule supplémentaire
+print(Heart.call("ExecutionFlow", "statut"))
+print(Core.get("version"))
+
+Scheduler.schedule("alert", "tache planifiee")
+Scheduler.run()                     // séquentiel
+Scheduler.runConcurrent()           // vrais threads (chaque self.env est isolé par thread)
+```
+
+### Multi-agents (`director` / `supervisor` / `agent` / `secretary`)
+
+Une chaîne de coordination complète, avec circulation dans les deux sens :
+
+```okp
+inject MultiAgent
+
+tent class Brain {
+    director {
+        fun objectif(tache: string): string { return "OBJECTIF: " + tache }
+        fun collecter(reponse: string): string { return "RAPPORT -> " + reponse }
+    }
+    supervisor "Equipe1" {
+        fun repartir(tache: string): string[] { return [tache + " [p1]", tache + " [p2]"] }
+        fun agreger(resultats: string[]): string { return "AGREGE(" + resultats.length() + ")" }
+    }
+    agent "Worker1" {
+        fun executer(sous_tache: string): string { return "FAIT: " + sous_tache }
+    }
+    secretary {
+        fun repondre(donnees: string): string { return "REPONSE: " + donnees }
     }
 }
 
-intention alert("Danger")
-tentRandom alert("Ping")
+val resultat = MultiAgent.run("analyser les ventes")
+print(resultat)   // { reponse: ..., trace: { director_descente: ..., agent_montee: ..., ... } }
 ```
 
-Dans ce modèle 🐙 :
+Le flux : `director` (objectifs) → `supervisor` (répartition) → `agent`
+(exécution) → `supervisor` (agrégation) → `secretary` (réponse) → `director`
+(rapport final). Chaque rôle est optionnel : sans fonction définie, l'étape
+est un simple passe-plat.
 
-- `tent class` déclare le cerveau central ;
-- `heart` contient la configuration centrale ;
-- `core` contient le noyau exécuté au démarrage ;
-- `ten class` déclare une tentacule locale ;
-- `intention` diffuse un appel à toutes les tentacules compatibles ;
-- `tentRandom` envoie un appel à une tentacule compatible choisie au hasard.
+### Observabilité
 
-Cette partie est en évolution. Le but est d'aller vers un vrai moteur interne de routage, d'adaptation et d'exécution distribuée.
+```okp
+inject Monitor
+Monitor.log("tentacule X a termine")
+print(Monitor.snapshot())   // tentacules, hearts, bases matches_db, taches en attente...
+print(Monitor.history())
+```
 
 ## Matrices 🐙 
 

@@ -68,12 +68,49 @@ class TenClass:
 
 @dataclass
 class HeartBlock:
+    def __init__(self, body, name=None):
+        self.body = body
+        self.name = name  # ex: "ExecutionFlow", "DataCirculation", "AdaptiveEngine"
+
+
+@dataclass
+class CoreBlock:
     def __init__(self, body):
         self.body = body
 
 
 @dataclass
-class CoreBlock:
+class DirectorBlock:
+    """director{} : coordonne les superviseurs, définit les objectifs,
+    collecte les résultats. Singleton (comme core{}) — un seul director
+    par tent class, environnement isolé."""
+    def __init__(self, body):
+        self.body = body
+
+
+@dataclass
+class SupervisorBlock:
+    """supervisor "Nom"{} : répartit les tâches entre agents, agrège les
+    réponses. Plusieurs superviseurs possibles (comme heart{}), chacun
+    avec son propre environnement isolé."""
+    def __init__(self, body, name=None):
+        self.body = body
+        self.name = name
+
+
+@dataclass
+class AgentBlock:
+    """agent "Nom"{} : effectue les traitements, exécute les missions.
+    Plusieurs agents possibles, chacun avec son propre environnement isolé."""
+    def __init__(self, body, name=None):
+        self.body = body
+        self.name = name
+
+
+@dataclass
+class SecretaryBlock:
+    """secretary{} : sert d'interface, reçoit les demandes, renvoie les
+    réponses. Singleton (comme core{}/director{})."""
     def __init__(self, body):
         self.body = body
 
@@ -183,6 +220,31 @@ class Stmt:
     pass
 
 
+def default_value_for_type(type_):
+    """Valeur par défaut d'une déclaration typée SANS initialiseur :
+    0 pour int, false pour bool, 0.0 pour float/decimal, [] pour les
+    tableaux (ex: int[]), {} pour dict, null pour tout le reste (string,
+    classes personnalisées...).
+
+    Les tableaux/dict ne tombent PAS dans le cas général "null" : un
+    tableau déclaré sans valeur puis utilisé (ex: tab.length()) plantait
+    sinon au premier usage — corrigé après validation explicite."""
+    if not type_:
+        return None
+    t = str(type_).lower()
+    if t.endswith("[]"):
+        return OktopiosList([])
+    if t in ("int", "integer"):
+        return 0
+    if t in ("bool", "boolean"):
+        return False
+    if t in ("float", "double", "decimal", "number"):
+        return 0.0
+    if t == "dict":
+        return OktopiosMap({})
+    return None
+
+
 @dataclass
 class VarDecl(Stmt):
     def __init__(self, name, type_, value, is_constant=False, access_modifier="public", is_static=False):
@@ -192,6 +254,15 @@ class VarDecl(Stmt):
         self.is_constant = is_constant
         self.access_modifier = access_modifier  # "public", "private", "protected", "global"
         self.is_static = is_static
+
+
+class MultiVarDecl(Stmt):
+    """Déclaration multiple en une seule instruction :
+    - 'var x, y, a : int = 1, 2, 3' (type partagé, valeurs appariées par position)
+    - 'var x = 1, y = 2, a = 3' (chaque variable a sa propre valeur/type inféré)
+    Exécutée comme une séquence de VarDecl indépendants."""
+    def __init__(self, decls):
+        self.decls = decls  # liste de VarDecl
 
     def __str__(self):
         init_part = f" = {self.value}" if self.value is not None else ""
@@ -328,6 +399,13 @@ class InPattern(Pattern):
         self.pattern = pattern
 
 
+class DbRefPattern(Pattern):
+    """Motif `=> nom` dans un bloc __matches_db__ : vrai si le champ
+    de l'entrée est lui-même une référence croisée vers `nom`."""
+    def __init__(self, name):
+        self.name = name
+
+
 @dataclass
 class UnaryExpr(Expr):
     operator: Token
@@ -391,6 +469,91 @@ class MatchExpr:
 
     def accept(self, visitor):
         return visitor.visit_MatchExpr(self)
+
+
+# ---------------------------------------------------------------------------
+# __matches_db__ / neuron_loop : mémoire associative à 5 catégories (Elementor)
+# ---------------------------------------------------------------------------
+
+class RefValue:
+    """Valeur `=> nom` à l'intérieur d'un bloc data{...} : déclare que ce
+    champ est une référence croisée vers une autre entrée/porte nommée `nom`,
+    plutôt qu'une valeur concrète."""
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return f"RefValue(=> {self.name})"
+
+
+class RefEntry:
+    """Un ref_el_X / ref_X { id: N => data: {...} } à l'intérieur d'une
+    catégorie (alpha/beta/gamma/ohm/dzeta) de memory{} ou elementor{}."""
+    def __init__(self, name, id_expr, data_pairs):
+        self.name = name              # ex: "ref_el_1"
+        self.id_expr = id_expr        # expression de l'id
+        self.data_pairs = data_pairs  # liste de (key_expr, value_expr|RefValue)
+
+    def __repr__(self):
+        return f"RefEntry({self.name}, id={self.id_expr})"
+
+
+class NeuronBlock:
+    """Un neuro_XXXXXXXXXXXX{...} : ports d'entrée, memory, elementor et
+    portes de sortie out_X."""
+    def __init__(self, name, enter, memory, elementor, out_blocks):
+        self.name = name                  # ex: "neuro_000000000001"
+        self.enter = enter                # dict catégorie -> expr (adresse)
+        self.memory = memory              # dict catégorie -> dict nom->RefEntry
+        self.elementor = elementor        # dict catégorie -> dict nom->RefEntry
+        self.out_blocks = out_blocks      # dict out_name -> dict catégorie->expr
+
+    def __repr__(self):
+        return f"NeuronBlock({self.name})"
+
+
+@dataclass
+class NeuronLoopDecl(Stmt):
+    """Déclaration top-level : neuron_loop NomDB { neuro_... { ... } ... }"""
+    def __init__(self, name, neurons, line=None, column=None):
+        self.name = name        # nom de la base, ex: "MaDB"
+        self.neurons = neurons  # liste de NeuronBlock
+        self.line = line
+        self.column = column
+
+    def accept(self, visitor):
+        return visitor.visit_NeuronLoopDecl(self)
+
+    def __repr__(self):
+        return f"NeuronLoopDecl({self.name}, {len(self.neurons)} neurones)"
+
+
+@dataclass
+class MatchesDbExpr:
+    """Expression : valeur __matches_db__ NomDB [threshold N] [autocreate CATEGORIE]
+    [insert CATEGORIE | update | delete | reflexion | select] { champ: motif, ... } [set { ... }]
+
+    Principe biologique : quel que soit le verbe, TOUTE requête commence par
+    la même étape de correspondance (motif/seuil) — exactement comme un
+    cerveau qui reconnaît toujours l'information avant d'agir dessus,
+    qu'il s'agisse de mémoriser, corriger, oublier ou simplement se rappeler."""
+    def __init__(self, value, db_name, motif, threshold=None, autocreate=None,
+                 verb="select", set_clause=None, line=None, column=None):
+        self.value = value          # expression de gauche
+        self.db_name = db_name      # nom de la base (str)
+        self.motif = motif          # liste de (field_expr, Pattern)
+        self.threshold = threshold  # expression du seuil (Axon Hillock) ou None
+        self.autocreate = autocreate  # nom de catégorie où créer si aucun résultat, ou None
+        self.verb = verb            # "select" | "insert" | "update" | "delete" | "reflexion"
+        self.set_clause = set_clause  # liste de (field_expr, value_expr), pour update
+        self.line = line
+        self.column = column
+
+    def accept(self, visitor):
+        return visitor.visit_MatchesDbExpr(self)
+
+    def __repr__(self):
+        return f"MatchesDbExpr({self.value} __matches_db__ {self.db_name} [{self.verb}])"
 
 
 @dataclass
@@ -534,6 +697,9 @@ class OktopiosList(list):
 
     def __str__(self):
         return str(self.elements)
+
+    def __repr__(self):
+        return repr(self.elements)
 
 
 # ---- NativeTypes.py ou directement dans interpreter.py ----

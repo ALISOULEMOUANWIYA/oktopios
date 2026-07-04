@@ -1,5 +1,13 @@
 from colorama import Fore, Style
 
+# Sentinel distinct de None : permet à get(..., suppress_errors=True) de
+# signaler "variable introuvable" sans confondre ce cas avec une variable
+# légitimement définie à None/null (bug réel trouvé : une méthode qui
+# renvoie correctement None faisait croire à l'appelant que la variable
+# n'existait pas, et le faisait chercher ailleurs / lever une erreur).
+NOT_FOUND = object()
+
+
 class Environment:
     def __init__(self, parent=None, enclosing=None, conflict_manager=None):
         self.values = {}
@@ -73,7 +81,7 @@ class Environment:
                 msg += f"/{arity}"
             raise Exception(msg)
 
-        return None
+        return NOT_FOUND
 
     def exists(self, name):
         if name in self.values:

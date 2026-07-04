@@ -35,7 +35,7 @@ if os.path.exists("README.md"):
 
 setup(
     name="oktopios",
-    version="0.0.22",
+    version="0.1.0",
     description="Oktopios - un langage de programmation moderne, expressif et bio-inspire",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -48,6 +48,18 @@ setup(
         "tabulate>=0.9.0",
         "psutil>=5.9",
     ],
+    extras_require={
+        # DataImport (json/excel/sql/mysql)
+        "data": ["openpyxl>=3.1", "pymysql>=1.1"],
+        # Recognize (faciale/vocale)
+        "recognition": ["opencv-contrib-python-headless>=4.8", "librosa>=0.10", "soundfile>=0.12"],
+        # IAModule (Ollama/DeepSeek/StarCoder)
+        "ia": ["requests>=2.31"],
+        # Tout d'un coup, pour les fanatiques qui veulent tout essayer
+        "all": ["openpyxl>=3.1", "pymysql>=1.1",
+                "opencv-contrib-python-headless>=4.8", "librosa>=0.10", "soundfile>=0.12",
+                "requests>=2.31"],
+    },
     entry_points={
         "console_scripts": [
             "okp=vm.main:main",

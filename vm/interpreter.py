@@ -1,11 +1,13 @@
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import re
 import random
 from . ast_nodes import *
 from . parser import FuncCall
 from . token_type import TokenType
 from colorama import Fore, Back, Style
-from . environment import Environment
+from . environment import Environment, NOT_FOUND
 from . lambda_function import LambdaFunction
 from . return_Value import ReturnValue
 from . user_function import UserFunction
@@ -14,19 +16,53 @@ from . runtime_class import RuntimeClass
 from . runtime_enum import RuntimeEnum
 from . native_constructeur import NativeCollectionsConstruct as constuct
 from . native_funcs import NativeFuncs as Funcs
+from . native_funcs import _ia_ollama_stream
 from . native_collections import NativeCollectionsFuncs as ColFuncs
 from . native_advanced_funcs import NativeAdvancedFuncs as AdvFuncs
 from . lexer import tokenize
 from . parser import Parser
 from . module_proxy import ModuleProxy
+from . neuron_db import NeuronLoopDB, NeuroRuntime, RefEntryRuntime, RefMarker, CategoryStore, CapacityFullError
 
 
-
-from . bound_method import BoundMethod
 #from . heart.heart import Heart
 #DEBUG = False  # mettre True pour traces détaillées
 class Interpreter:
+    # --- self.env / self.current_instance / self.current_return_type sont
+    # désormais PAR THREAD (via threading.local) plutôt que des attributs
+    # d'instance partagés. Chaque thread a sa propre "pile" d'environnements
+    # d'exécution — c'est ce qui permet à Scheduler.runConcurrent() de faire
+    # tourner du VRAI code Oktopios en parallèle sur plusieurs threads sans
+    # qu'ils se piétinent (avant : un seul verrou global sérialisait tout).
+    # Les structures réellement PARTAGÉES (self.tentacles, self.matches_db,
+    # self.hearts, self.classes...) restent des attributs normaux et doivent
+    # toujours passer par self._shared_lock pour toute mutation concurrente.
+    @property
+    def env(self):
+        return getattr(self._thread_local, "env", self.global_env)
+
+    @env.setter
+    def env(self, value):
+        self._thread_local.env = value
+
+    @property
+    def current_instance(self):
+        return getattr(self._thread_local, "current_instance", None)
+
+    @current_instance.setter
+    def current_instance(self, value):
+        self._thread_local.current_instance = value
+
+    @property
+    def current_return_type(self):
+        return getattr(self._thread_local, "current_return_type", None)
+
+    @current_return_type.setter
+    def current_return_type(self, value):
+        self._thread_local.current_return_type = value
+
     def __init__(self):
+        self._thread_local = threading.local()
         self.global_env = Environment()
         self.env = self.global_env
         self.current_return_type = None
@@ -34,6 +70,69 @@ class Interpreter:
         self.in_expr_context = False
         self.native_construct = {**constuct}
         self.native_funcs = { **AdvFuncs, **Funcs, **ColFuncs}
+
+        # --- Namespaces natifs liés à CETTE instance d'interpréteur (Heart "ExecutionFlow") ---
+        self.native_funcs["Tentacle"] = {
+            "create": lambda template_name, *args: self.create_tentacle(template_name, list(args)),
+            "count": lambda: len(self.tentacles),
+            "list": lambda: OktopiosList([t.klass.name for t in self.tentacles]),
+        }
+        self.native_funcs["Scheduler"] = {
+            "schedule": lambda intention_name, *args: self.schedule_task(intention_name, list(args)),
+            "run": lambda: self.run_scheduler(sequential=True),
+            "runConcurrent": lambda: self.run_scheduler(sequential=False),
+            "pending": lambda: len(self.task_queue),
+        }
+        self.native_funcs["Heart"] = {
+            "call": lambda heart_name, func_name, *args: self.call_heart_function(heart_name, func_name, list(args)),
+            "get": lambda heart_name, var_name: self.get_heart_var(heart_name, var_name),
+            "list": lambda: OktopiosList(list(self.hearts.keys())),
+        }
+        self.native_funcs["Core"] = {
+            "call": lambda func_name, *args: self.call_core_function(func_name, list(args)),
+            "get": lambda var_name: self.get_core_var(var_name),
+            "set": lambda var_name, value: self.set_core_var(var_name, value),
+        }
+        self.native_funcs["Monitor"] = {
+            "snapshot": lambda: self.monitor_snapshot(),
+            "tentacles": lambda: OktopiosList([
+                OktopiosMap({"classe": t.klass.name, "champs": list(t.fields.keys())})
+                for t in self.tentacles
+            ]),
+            "log": lambda *args: self.monitor_log(args),
+            "history": lambda: OktopiosList(list(self.monitor_events)),
+        }
+        self.native_funcs["MatchesDB"] = {
+            "save": lambda db_name, path: self.save_matches_db(db_name, path),
+            "load": lambda db_name, path: self.load_matches_db(db_name, path),
+        }
+        # Étendre IAModule avec le fallback en cascade + le streaming (ont
+        # besoin de l'interpréteur : rappeler un backend différent, ou
+        # invoquer une fonction Oktopios à chaque morceau de texte reçu).
+        self.native_funcs["IAModule"]["callWithFallback"] = lambda prompt, backends: self.ia_call_with_fallback(prompt, backends)
+        self.native_funcs["IAModule"]["ollamaStream"] = lambda prompt, on_chunk, model="llama3", host="http://localhost:11434", timeout=60: self.ia_ollama_stream(prompt, on_chunk, model, host, timeout)
+        self.native_funcs["Director"] = {
+            "call": lambda func_name, *args: self.call_director_function(func_name, list(args)),
+        }
+        self.native_funcs["Supervisor"] = {
+            "call": lambda name, func_name, *args: self.call_supervisor_function(name, func_name, list(args)),
+            "list": lambda: OktopiosList(list(self.supervisors.keys())),
+        }
+        self.native_funcs["Agent"] = {
+            "call": lambda name, func_name, *args: self.call_agent_function(name, func_name, list(args)),
+            "list": lambda: OktopiosList(list(self.agent_blocks.keys())),
+        }
+        self.native_funcs["Secretary"] = {
+            "call": lambda func_name, *args: self.call_secretary_function(func_name, list(args)),
+        }
+        self.native_funcs["MultiAgent"] = {
+            "run": lambda tache: self.run_multi_agent(tache),
+        }
+        self.native_funcs["AdaptiveEngine"] = {
+            "run": lambda situation, options, backend="ollama", model=None, api_key=None: self.adaptive_run(situation, options, backend, model, api_key),
+            "recall": lambda situation, threshold=1: self.adaptive_recall(situation, threshold),
+            "memory": lambda: self.adaptive_memory_list(),
+        }
         self.variables = {}
         self.checkargMeth = {}
         self.fieldsMeth = {}
@@ -43,6 +142,17 @@ class Interpreter:
         self.enums = {}
         self.central_tent = None
         self.tentacles = []
+        self.tentacle_templates = {}  # nom de classe 'ten' -> class_decl (pour createTentacle())
+        self.hearts = {}              # nom du coeur -> HeartBlock (Heart1/2/3...)
+        self.core_env = None          # noyau partagé (core{}) : parent de tous les hearts
+        self.director_env = None      # director{} : singleton, coordonne les superviseurs
+        self.supervisors = {}         # nom -> {"block":..., "env":...}
+        self.agent_blocks = {}        # nom -> {"block":..., "env":...} (distinct de self.tentacles/ten class)
+        self.secretary_env = None     # secretary{} : singleton, interface de réponse
+        self.adaptive_memory_db = None  # mémoire d'expérience de l'AdaptiveEngine (neuron_loop dédié)
+        self.monitor_events = []      # historique pour Monitor.log/history (Heart 3 : "IA & Monitoring")
+        self.task_queue = []          # file de tâches pour le scheduler (Heart "ExecutionFlow")
+        self._shared_lock = threading.RLock()  # protège UNIQUEMENT les structures partagées (tentacules, matches_db, scheduler, hearts/core, monitor) ; le reste du code Oktopios tourne en vrai parallèle grâce aux self.env thread-local ci-dessus
         self.heart_config = {}
         self.modules_loaded =  []
         self.modules_loaded_alias =  {}
@@ -52,6 +162,7 @@ class Interpreter:
             os.path.join(os.getcwd(), "modules"),  # ./modules
             # tu peux ajouter d'autres dossiers relatifs au projet
         ]
+        self.matches_db = {}  # nom de la base -> NeuronLoopDB (déclarations neuron_loop)
         #self.env.define("heart", Heart())
 
     # ---- INTERPRÉTATION ----
@@ -76,10 +187,12 @@ class Interpreter:
             class_stmt = stmt.class_decl if isinstance(stmt, (TentClass, TenClass)) else stmt
             if isinstance(class_stmt, ClassDeclaration):
                 if getattr(class_stmt, "is_abstract", False):
-                    self.abstract_classes[class_stmt.name] = class_stmt
+                    with self._shared_lock:
+                        self.abstract_classes[class_stmt.name] = class_stmt
                     #print(f"[Classe Abstraite] {class_stmt.name}")
                 else:
-                    self.classes[class_stmt.name] = class_stmt
+                    with self._shared_lock:
+                        self.classes[class_stmt.name] = class_stmt
                     #print(f"[Classe Concrete] {class_stmt.name}")
 
         # ------------------------
@@ -119,30 +232,562 @@ class Interpreter:
 
     def visit_TentClass(self, stmt):
         self.central_tent = stmt
-        self.classes[stmt.name] = stmt.class_decl
-        for member in stmt.body:
-            if isinstance(member, HeartBlock):
-                self.visit_HeartBlock(member)
+        with self._shared_lock:
+            self.classes[stmt.name] = stmt.class_decl
+        # CORE en premier : c'est le "noyau" partagé que tous les hearts
+        # peuvent ensuite lire (contrairement aux hearts, isolés entre eux).
         for member in stmt.body:
             if isinstance(member, CoreBlock):
                 self.visit_CoreBlock(member)
+        for member in stmt.body:
+            if isinstance(member, HeartBlock):
+                self.visit_HeartBlock(member)
+        # Architecture multi-agents (MASTER_SPECIFICATION.md) : director en
+        # premier (coordinateur), puis supervisors/agents (indépendants entre
+        # eux), puis secretary (interface terminale).
+        for member in stmt.body:
+            if isinstance(member, DirectorBlock):
+                self.visit_DirectorBlock(member)
+        for member in stmt.body:
+            if isinstance(member, SupervisorBlock):
+                self.visit_SupervisorBlock(member)
+        for member in stmt.body:
+            if isinstance(member, AgentBlock):
+                self.visit_AgentBlock(member)
+        for member in stmt.body:
+            if isinstance(member, SecretaryBlock):
+                self.visit_SecretaryBlock(member)
         return None
 
     def visit_TenClass(self, stmt):
-        self.classes[stmt.name] = stmt.class_decl
-        instance = RuntimeInstance(stmt.class_decl, interpreter=self)
-        self.tentacles.append(instance)
+        with self._shared_lock:
+            self.classes[stmt.name] = stmt.class_decl
+            self.tentacle_templates[stmt.name] = stmt.class_decl
+        instance = self.instantiate_class(stmt.class_decl, args=[])
+        with self._shared_lock:
+            self.tentacles.append(instance)
         return None
+
+    def create_tentacle(self, template_name, args=None):
+        """'Create Tentacle()' du schéma : instancie dynamiquement une nouvelle
+        tentacule à partir d'un template 'ten class' déjà déclaré, et l'ajoute
+        au pool de tentacules dispatchable par intention/tentRandom."""
+        class_decl = self.tentacle_templates.get(template_name)
+        if class_decl is None:
+            raise Exception(
+                f"[Erreur] Aucun template de tentacule 'ten class {template_name}' trouvé "
+                f"(templates disponibles : {list(self.tentacle_templates.keys())})"
+            )
+        instance = self.instantiate_class(class_decl, args=args or [])
+        with self._shared_lock:
+            self.tentacles.append(instance)
+        return instance
+
+    def schedule_task(self, intention_name, args):
+        """Heart 'ExecutionFlow' : place une intention en attente au lieu de
+        la diffuser immédiatement à toutes les tentacules — la planification
+        devient un acte explicite plutôt qu'un effet de bord."""
+        with self._shared_lock:
+            self.task_queue.append((intention_name, args))
+            return len(self.task_queue)
+
+    def run_scheduler(self, sequential=True):
+        """Exécute les tâches en attente.
+
+        - sequential=True  (Scheduler.run) : une tâche après l'autre, ordre
+          déterministe — équivalent à plusieurs 'intention' à la suite.
+        - sequential=False (Scheduler.runConcurrent) : dispatché sur un VRAI
+          pool de threads. Grâce à self.env (et current_instance/
+          current_return_type) en stockage PAR THREAD, deux tentacules
+          peuvent maintenant exécuter du code Oktopios EN MEME TEMPS sans se
+          piétiner — ce n'est plus juste une concurrence "d'attente réseau".
+          Seules les structures réellement PARTAGÉES (tentacules, bases
+          __matches_db__, scheduler, hearts/core, monitoring) restent
+          protégées par un verrou fin (self._shared_lock), localisé à chaque
+          point de mutation plutôt qu'autour de toute l'exécution.
+        """
+        with self._shared_lock:
+            tasks = self.task_queue
+            self.task_queue = []
+
+        def run_one(intention_name, args):
+            for tentacle in list(self.tentacles):
+                self.dispatch_to_tentacle(tentacle, intention_name, args, required=False)
+            return intention_name
+
+        results = []
+        if sequential or len(tasks) <= 1:
+            for name, args in tasks:
+                results.append(run_one(name, args))
+        else:
+            with ThreadPoolExecutor(max_workers=min(8, len(tasks))) as pool:
+                futures = [pool.submit(run_one, name, args) for name, args in tasks]
+                for f in futures:
+                    results.append(f.result())
+
+        return OktopiosList(results)
 
     def visit_HeartBlock(self, stmt):
-        for s in stmt.body:
-            self.execute(s)
+        # Chaque heart{} a son PROPRE environnement, isolé des autres hearts,
+        # mais dont le PARENT est le noyau partagé (core{}) s'il existe : un
+        # heart peut donc LIRE l'état central, sans jamais polluer le scope
+        # global ni les autres hearts.
+        heart_env = Environment(enclosing=self.core_env or self.env)
+        prev_env = self.env
+        self.env = heart_env
+        try:
+            for s in stmt.body:
+                self.execute(s)
+        finally:
+            self.env = prev_env
+
+        if getattr(stmt, "name", None):
+            with self._shared_lock:
+                self.hearts[stmt.name] = {"block": stmt, "env": heart_env}
         return None
 
+    def call_heart_function(self, heart_name, func_name, args=None):
+        """Heart.call('ExecutionFlow', 'status', ...) : invoque une fonction
+        définie DANS le scope isolé d'un cœur nommé."""
+        heart = self.hearts.get(heart_name)
+        if heart is None:
+            raise Exception(
+                f"[Erreur] Aucun heart nommé '{heart_name}' trouvé "
+                f"(cœurs disponibles : {list(self.hearts.keys())})"
+            )
+        args = args or []
+        func = heart["env"].get(func_name, suppress_errors=True)
+        if func is NOT_FOUND:
+            func = heart["env"].get(f"{func_name}/{len(args)}", suppress_errors=True)
+        if func is NOT_FOUND or not isinstance(func, UserFunction):
+            raise Exception(
+                f"[Erreur] Aucune fonction '{func_name}' dans le heart '{heart_name}'"
+            )
+        return func.call(self, args)
+
+    def get_heart_var(self, heart_name, var_name):
+        """Heart.get('DataCirculation', 'cache') : lit une variable définie
+        dans le scope isolé d'un cœur nommé."""
+        heart = self.hearts.get(heart_name)
+        if heart is None:
+            raise Exception(f"[Erreur] Aucun heart nommé '{heart_name}' trouvé")
+        value = heart["env"].get(var_name, suppress_errors=True)
+        return None if value is NOT_FOUND else value
+
     def visit_CoreBlock(self, stmt):
-        for s in stmt.body:
-            self.execute(s)
+        # Le "noyau" est UNIQUE et PARTAGÉ : plusieurs core{} dans le même
+        # tent class s'accumulent dans le MÊME environnement (contrairement
+        # aux hearts, isolés chacun de leur côté). C'est l'état central que
+        # tous les hearts peuvent ensuite lire.
+        with self._shared_lock:
+            if self.core_env is None:
+                self.core_env = Environment(enclosing=self.env)
+        prev_env = self.env
+        self.env = self.core_env
+        try:
+            for s in stmt.body:
+                self.execute(s)
+        finally:
+            self.env = prev_env
         return None
+
+    def call_core_function(self, func_name, args=None):
+        """Core.call('configurer', ...) : invoque une fonction définie dans
+        le noyau partagé."""
+        if self.core_env is None:
+            raise Exception("[Erreur] Aucun 'core{}' déclaré dans ce programme")
+        args = args or []
+        func = self.core_env.get(func_name, suppress_errors=True)
+        if func is NOT_FOUND:
+            func = self.core_env.get(f"{func_name}/{len(args)}", suppress_errors=True)
+        if func is NOT_FOUND or not isinstance(func, UserFunction):
+            raise Exception(f"[Erreur] Aucune fonction '{func_name}' dans le core")
+        return func.call(self, args)
+
+    def get_core_var(self, var_name):
+        if self.core_env is None:
+            raise Exception("[Erreur] Aucun 'core{}' déclaré dans ce programme")
+        value = self.core_env.get(var_name, suppress_errors=True)
+        return None if value is NOT_FOUND else value
+
+    def set_core_var(self, var_name, value):
+        with self._shared_lock:
+            if self.core_env is None:
+                self.core_env = Environment(enclosing=self.env)
+            self.core_env.define(var_name, value=value)
+        return value
+
+    # ------------------------------------------------------------------
+    # Architecture multi-agents : director / supervisor / agent / secretary
+    # (MASTER_SPECIFICATION.md — Priorité n°1)
+    # ------------------------------------------------------------------
+    def _run_isolated_block(self, stmt, parent_env=None):
+        """Exécute le corps d'un bloc pieuvre dans un environnement isolé et
+        renvoie cet environnement (mécanisme commun à heart/core/director/
+        supervisor/agent/secretary)."""
+        block_env = Environment(enclosing=parent_env or self.env)
+        prev_env = self.env
+        self.env = block_env
+        try:
+            for s in stmt.body:
+                self.execute(s)
+        finally:
+            self.env = prev_env
+        return block_env
+
+    def visit_DirectorBlock(self, stmt):
+        # Singleton (comme core{}) : coordonne les superviseurs.
+        env = self._run_isolated_block(stmt)
+        with self._shared_lock:
+            self.director_env = env
+        return None
+
+    def visit_SupervisorBlock(self, stmt):
+        env = self._run_isolated_block(stmt)
+        name = getattr(stmt, "name", None) or f"supervisor_{len(self.supervisors) + 1}"
+        with self._shared_lock:
+            self.supervisors[name] = {"block": stmt, "env": env}
+        return None
+
+    def visit_AgentBlock(self, stmt):
+        env = self._run_isolated_block(stmt)
+        name = getattr(stmt, "name", None) or f"agent_{len(self.agent_blocks) + 1}"
+        with self._shared_lock:
+            self.agent_blocks[name] = {"block": stmt, "env": env}
+        return None
+
+    def visit_SecretaryBlock(self, stmt):
+        # Singleton : sert d'interface, reçoit les demandes, renvoie les réponses.
+        env = self._run_isolated_block(stmt)
+        with self._shared_lock:
+            self.secretary_env = env
+        return None
+
+    def _call_in_env(self, env, func_name, args):
+        """Appelle func_name(args...) dans `env` s'il existe, sinon renvoie
+        None (les rôles sans cette fonction sont de simples passe-plat)."""
+        if env is None:
+            return None
+        func = env.get(func_name, suppress_errors=True)
+        if func is NOT_FOUND:
+            func = env.get(f"{func_name}/{len(args)}", suppress_errors=True)
+        if func is NOT_FOUND or not isinstance(func, UserFunction):
+            return None
+        return func.call(self, args)
+
+    def call_director_function(self, func_name, args=None):
+        if self.director_env is None:
+            raise Exception("[Erreur] Aucun 'director{}' déclaré dans ce programme")
+        return self._call_in_env(self.director_env, func_name, args or [])
+
+    def call_supervisor_function(self, name, func_name, args=None):
+        sup = self.supervisors.get(name)
+        if sup is None:
+            raise Exception(f"[Erreur] Aucun supervisor nommé '{name}' (disponibles : {list(self.supervisors.keys())})")
+        return self._call_in_env(sup["env"], func_name, args or [])
+
+    def call_agent_function(self, name, func_name, args=None):
+        ag = self.agent_blocks.get(name)
+        if ag is None:
+            raise Exception(f"[Erreur] Aucun agent nommé '{name}' (disponibles : {list(self.agent_blocks.keys())})")
+        return self._call_in_env(ag["env"], func_name, args or [])
+
+    def call_secretary_function(self, func_name, args=None):
+        if self.secretary_env is None:
+            raise Exception("[Erreur] Aucun 'secretary{}' déclaré dans ce programme")
+        return self._call_in_env(self.secretary_env, func_name, args or [])
+
+    def run_multi_agent(self, tache):
+        """MultiAgent.run(tache) : fait circuler `tache` dans tout le sens du
+        schéma — director -> supervisor -> agent -> secretary -> réponse ->
+        agent -> supervisor -> director — et journalise chaque étape pour
+        Monitor. Chaque rôle est optionnel : s'il ne définit pas la fonction
+        attendue, l'étape est un simple passe-plat (la valeur traverse
+        inchangée), pour ne jamais bloquer un programme partiellement écrit.
+
+        Contrat de fonctions (toutes optionnelles) :
+          director   : objectif(tache) -> tache_affinee
+          supervisor : repartir(tache) -> sous_taches (liste)
+                       agreger(resultats) -> resultat_agrege
+          agent      : executer(sous_tache) -> resultat
+          secretary  : repondre(reponse) -> reponse_finale
+        """
+        trace = OktopiosMap({})
+
+        # --- DESCENTE : director -> supervisor -> agent ---
+        tache_d = self.call_director_function("objectif", [tache])
+        if tache_d is None:
+            tache_d = tache
+        trace.entries["director_descente"] = tache_d
+
+        supervisor_results = []
+        for sup_name in list(self.supervisors.keys()):
+            sous_taches = self.call_supervisor_function(sup_name, "repartir", [tache_d])
+            if sous_taches is None:
+                sous_taches = [tache_d]
+            elif not isinstance(sous_taches, (list, OktopiosList)):
+                sous_taches = [sous_taches]
+
+            agent_results = []
+            agent_names = list(self.agent_blocks.keys()) or [None]
+            for i, sous_tache in enumerate(sous_taches):
+                agent_name = agent_names[i % len(agent_names)]
+                if agent_name is None:
+                    agent_results.append(sous_tache)  # aucun agent déclaré : passe-plat
+                else:
+                    resultat = self.call_agent_function(agent_name, "executer", [sous_tache])
+                    agent_results.append(sous_tache if resultat is None else resultat)
+
+            # --- MONTÉE : agent -> supervisor (agrégation) ---
+            agrege = self.call_supervisor_function(sup_name, "agreger", [OktopiosList(agent_results)])
+            supervisor_results.append(OktopiosList(agent_results) if agrege is None else agrege)
+
+        trace.entries["agent_montee"] = OktopiosList(supervisor_results)
+
+        # --- secretary : interface / réponse finale ---
+        secretary_input = OktopiosList(supervisor_results) if supervisor_results else tache_d
+        reponse = self.call_secretary_function("repondre", [secretary_input])
+        if reponse is None:
+            reponse = secretary_input
+        trace.entries["secretary_reponse"] = reponse
+
+        # --- MONTÉE finale : supervisor -> director ---
+        director_final = self.call_director_function("collecter", [reponse])
+        trace.entries["director_collecte"] = director_final if director_final is not None else reponse
+
+        self.monitor_log([f"MultiAgent.run : {len(self.supervisors)} supervisor(s), {len(self.agent_blocks)} agent(s)"])
+
+        final = director_final if director_final is not None else reponse
+        return OktopiosMap({"reponse": final, "trace": trace})
+
+    # ------------------------------------------------------------------
+    # AdaptiveEngine : IAModule -> Analyse -> Décision -> Action -> Feedback
+    # -> Apprentissage (MASTER_SPECIFICATION.md — Priorité n°2)
+    # ------------------------------------------------------------------
+    def _get_adaptive_memory(self):
+        """Mémoire d'expérience : un neuron_loop dédié, créé à la première
+        utilisation. L'apprentissage de l'AdaptiveEngine s'appuie donc sur le
+        MÊME mécanisme __matches_db__ que le reste du langage."""
+        if self.adaptive_memory_db is None:
+            with self._shared_lock:
+                if self.adaptive_memory_db is None:
+                    db = NeuronLoopDB("AdaptiveMemory")
+                    db.add_neuron(NeuroRuntime("neuro_1", enter={}, memory={}, elementor={}, out_blocks={}))
+                    self.adaptive_memory_db = db
+                    self.matches_db["AdaptiveMemory"] = db
+        return self.adaptive_memory_db
+
+    def adaptive_run(self, situation, options, backend="ollama", model=None, api_key=None):
+        """AdaptiveEngine.run(situation, options) : IAModule -> Analyse ->
+        Décision -> Action -> Feedback -> Apprentissage. Chaque étape est
+        honnête sur son issue : si l'IA est indisponible, une heuristique de
+        repli décide quand même (jamais de blocage), et le feedback le dit
+        explicitement plutôt que de prétendre que l'IA a tranché."""
+        options_list = list(options) if isinstance(options, (list, OktopiosList)) else [options]
+        situation_str = str(situation)
+
+        # --- IAModule : demande une décision à un modèle externe ---
+        prompt = (
+            f"Situation : {situation_str}\n"
+            f"Options possibles : {', '.join(str(o) for o in options_list)}\n"
+            "Choisis la meilleure option et explique brièvement pourquoi. "
+            "Réponds STRICTEMENT au format : OPTION: <choix exact> | RAISON: <texte court>"
+        )
+        ia_response = None
+        erreur_ia = None
+        try:
+            backend_fn = self.native_funcs.get("IAModule", {}).get(backend)
+            if backend_fn is None:
+                raise Exception(f"Backend IA inconnu : '{backend}'")
+            if backend == "ollama":
+                ia_response = backend_fn(prompt, model or "llama3")
+            else:
+                # deepseek/starcoder : api_key optionnelle (route vers Ollama
+                # localement si absente — voir _ia_deepseek/_ia_starcoder)
+                ia_response = backend_fn(prompt, api_key, model)
+        except Exception as e:
+            erreur_ia = str(e)
+
+        # --- Analyse + Décision ---
+        decision, raison = self._adaptive_parse_decision(ia_response, options_list)
+
+        # --- Action : exécute agir(decision) si défini (core{} puis director{}) ---
+        action_result = None
+        if self.core_env is not None:
+            action_result = self._call_in_env(self.core_env, "agir", [decision])
+        if action_result is None and self.director_env is not None:
+            action_result = self._call_in_env(self.director_env, "agir", [decision])
+
+        # --- Feedback : honnête sur ce qui s'est réellement passé ---
+        if erreur_ia:
+            feedback = f"ia_indisponible: {erreur_ia}"
+        elif action_result is not None:
+            feedback = f"action_executee: {action_result}"
+        else:
+            feedback = "decision_seule (aucune fonction agir() definie dans core{} ou director{})"
+
+        # --- Apprentissage : mémorise l'expérience pour AdaptiveEngine.recall() ---
+        db = self._get_adaptive_memory()
+        db.create_element("alpha", {
+            "situation": situation_str,
+            "decision": decision,
+            "raison": raison,
+            "feedback": feedback,
+        })
+
+        self.monitor_log([f"AdaptiveEngine.run : decision='{decision}' feedback='{feedback}'"])
+
+        return OktopiosMap({
+            "decision": decision,
+            "raison": raison,
+            "feedback": feedback,
+            "action_result": action_result,
+            "ia_response": ia_response,
+            "erreur_ia": erreur_ia,
+        })
+
+    def _adaptive_parse_decision(self, ia_response, options):
+        """Analyse + Décision : extrait OPTION/RAISON de la réponse IA. Si
+        l'IA est indisponible ou répond hors-format, une heuristique de
+        repli choisit quand même (jamais de blocage) — le feedback signale
+        alors honnêtement que ce n'est pas l'IA qui a tranché."""
+        if ia_response:
+            option_choisie, raison_ia = None, None
+            for part in str(ia_response).split("|"):
+                part = part.strip()
+                if part.upper().startswith("OPTION:"):
+                    option_choisie = part.split(":", 1)[1].strip()
+                elif part.upper().startswith("RAISON:"):
+                    raison_ia = part.split(":", 1)[1].strip()
+            if option_choisie:
+                if option_choisie in options:
+                    return option_choisie, raison_ia or "(IA)"
+                sim_fn = self.native_funcs.get("Recognize", {}).get("textSimilarity")
+                if sim_fn and options:
+                    meilleure = max(options, key=lambda o: sim_fn(str(o), option_choisie))
+                    return meilleure, raison_ia or "(IA, correspondance approchée)"
+                return option_choisie, raison_ia or "(IA)"
+
+        if options:
+            return options[0], "repli heuristique (IA indisponible ou réponse non conforme)"
+        return None, "aucune option fournie"
+
+    def adaptive_recall(self, situation, threshold=1):
+        """AdaptiveEngine.recall(situation) : réutilise EXACTEMENT le
+        mécanisme __matches_db__ pour retrouver des expériences passées
+        similaires — l'apprentissage et le rappel s'appuient sur la même
+        mémoire associative que le reste du langage, pas un système séparé."""
+        db = self._get_adaptive_memory()
+        motif = [(Literal("situation"), ValuePattern(Literal(str(situation))))]
+        with db.lock:
+            matches = self._find_matches(db, str(situation), motif, max(0, threshold))
+            return OktopiosList([
+                self._entry_to_okp(n, s, c, r, e, fired=True, matched_criteria=cnt,
+                                    threshold=threshold, propagation=[n])
+                for n, s, c, r, e, cnt in matches
+            ])
+
+    def adaptive_memory_list(self):
+        if self.adaptive_memory_db is None:
+            return OktopiosList([])
+        db = self.adaptive_memory_db
+        with db.lock:
+            return OktopiosList([
+                OktopiosMap(e.to_okp_dict()) for n, s, c, r, e in db.all_locations()
+            ])
+
+    # ------------------------------------------------------------------
+    # IAModule : fallback en cascade + streaming (MASTER_SPECIFICATION.md
+    # — Priorité n°3 : timeout/reconnexion/streaming/fallback)
+    # ------------------------------------------------------------------
+    def ia_call_with_fallback(self, prompt, backends):
+        """IAModule.callWithFallback(prompt, backends) : essaie chaque
+        backend dans l'ordre donné jusqu'à ce qu'un réponde. Un appel IA qui
+        échoue ne doit jamais planter un programme qui en a prévu un autre
+        derrière — chaque échec est noté, pas juste avalé en silence."""
+        backends_list = list(backends) if isinstance(backends, (list, OktopiosList)) else [backends]
+        erreurs = []
+
+        for cfg in backends_list:
+            cfg = cfg.entries if isinstance(cfg, OktopiosMap) and cfg.entries is not None else dict(cfg)
+            backend = cfg.get("backend", "ollama")
+            fn = self.native_funcs.get("IAModule", {}).get(backend)
+            if fn is None:
+                erreurs.append(f"{backend}: backend inconnu")
+                continue
+            try:
+                if backend == "ollama":
+                    reponse = fn(
+                        prompt, cfg.get("model", "llama3"), cfg.get("host", "http://localhost:11434"),
+                        cfg.get("timeout", 60), cfg.get("retries", 2),
+                    )
+                else:
+                    # deepseek/starcoder : api_key optionnelle (route vers
+                    # Ollama localement si absente — voir _ia_deepseek/_ia_starcoder)
+                    reponse = fn(
+                        prompt, cfg.get("api_key"), cfg.get("model"),
+                        cfg.get("timeout", 60), cfg.get("retries", 2), cfg.get("host", "http://localhost:11434"),
+                    )
+                return OktopiosMap({
+                    "backend": backend,
+                    "reponse": reponse,
+                    "erreurs_precedentes": OktopiosList(erreurs),
+                })
+            except Exception as e:
+                erreurs.append(f"{backend}: {e}")
+                continue
+
+        raise Exception(f"[IAModule.callWithFallback] Tous les backends ont échoué : {'; '.join(erreurs)}")
+
+    def ia_ollama_stream(self, prompt, on_chunk, model="llama3", host="http://localhost:11434", timeout=60):
+        """IAModule.ollamaStream(prompt, onChunk) : appelle onChunk(morceau)
+        à chaque fragment reçu d'Ollama (garde la connexion 'vivante' sur les
+        longues générations), et renvoie le texte complet à la fin."""
+        def callback(piece):
+            if isinstance(on_chunk, UserFunction):
+                on_chunk.call(self, [piece])
+        return _ia_ollama_stream(prompt, model, host, timeout, callback)
+
+    def monitor_snapshot(self):
+        """Heart 3 / Monitoring : état observable de l'organisme à l'instant T."""
+        import time as _time
+        return OktopiosMap({
+            "horodatage": _time.time(),
+            "tentacules": len(self.tentacles),
+            "templates_tentacules": list(self.tentacle_templates.keys()),
+            "hearts": list(self.hearts.keys()),
+            "core_actif": self.core_env is not None,
+            "taches_en_attente": len(self.task_queue),
+            "bases_matches_db": list(self.matches_db.keys()),
+            "evenements_logges": len(self.monitor_events),
+        })
+
+    def monitor_log(self, args):
+        """Monitor.log(...) : trace un événement dans l'historique observable."""
+        import time as _time
+        message = " ".join(str(a) for a in args)
+        event = OktopiosMap({"horodatage": _time.time(), "message": message})
+        with self._shared_lock:
+            self.monitor_events.append(event)
+            return len(self.monitor_events)
+
+    def save_matches_db(self, db_name, path):
+        """MatchesDB.save('NomDB', 'chemin.json') : persiste une base
+        neuron_loop sur disque (tout était perdu à la fin du programme)."""
+        db = self.matches_db.get(db_name)
+        if db is None:
+            raise Exception(f"[Erreur] Aucune base __matches_db__ nommée '{db_name}'")
+        db.save(path)
+        return True
+
+    def load_matches_db(self, db_name, path):
+        """MatchesDB.load('NomDB', 'chemin.json') : recharge une base
+        sauvegardée précédemment et l'enregistre sous ce nom."""
+        db = NeuronLoopDB.load(path)
+        db.name = db_name
+        self.matches_db[db_name] = db
+        self.env.define(db_name, db)
+        return True
 
     def visit_IntentionStmt(self, stmt):
         args = [self.evaluate(arg) for arg in stmt.args]
@@ -194,8 +839,15 @@ class Interpreter:
             self.activate_class(stmt.class_name)
             return None
         elif isinstance(stmt, VarDecl):
-            value = self.evaluate(stmt.value)
+            if stmt.value is not None:
+                value = self.evaluate(stmt.value)
+            else:
+                value = default_value_for_type(stmt.type_)
             self.env.define(stmt.name, value=value, arity=None, is_constant=stmt.is_constant)
+            return None
+        elif isinstance(stmt, MultiVarDecl):
+            for decl in stmt.decls:
+                self.execute(decl)
             return None
         elif isinstance(stmt, PrintStmt):
             values = [self.evaluate(expr) for expr in stmt.expressions]
@@ -224,9 +876,11 @@ class Interpreter:
                     color_code += getattr(Style, str(self.evaluate(style_name)).upper(), "")
 
             if color_code:
-                print(f"{color_code}{output}{Style.RESET_ALL}")
+                with self._shared_lock:
+                    print(f"{color_code}{output}{Style.RESET_ALL}")
             else:
-                print(output)
+                with self._shared_lock:
+                    print(output)
             return None
         elif isinstance(stmt, IfStmt):
             if self.evaluate(stmt.condition):
@@ -450,9 +1104,9 @@ class Interpreter:
             return expr.value
         elif isinstance(expr, Variable):
             value = self.env.get(expr.name, suppress_errors=True)
-            if value is None:
+            if value is NOT_FOUND:
                 value = self.global_env.get(expr.name, suppress_errors=True)
-            if value is None:
+            if value is NOT_FOUND:
                 # 🧠 Chercher dans les classes déclarées
                 if expr.name in self.classes:
                     klass = self.classes[expr.name]
@@ -460,7 +1114,7 @@ class Interpreter:
                     #print("ici retrn", retrn.name)
                     return retrn
 
-            if value is None:
+            if value is NOT_FOUND:
                 raise Exception(f"[Erreur] Variable ou fonction inconnue : {expr.name} dans la ligne: {expr.line} et colone: {expr.column}")
             #print(f"Donc value = {value}")
             return value
@@ -492,6 +1146,8 @@ class Interpreter:
             return self.visit_MatchesExpr(expr)
         elif isinstance(expr, MatchExpr):
             return self.visit_MatchExpr(expr)
+        elif isinstance(expr, MatchesDbExpr):
+            return self.visit_MatchesDbExpr(expr)
         elif isinstance(expr, IsTypeExpr):
             return self.visit_IsTypeExpr(expr)
         elif isinstance(expr, BetweenExpr):
@@ -904,6 +1560,16 @@ class Interpreter:
             elif isinstance(obj, OktopiosList):
                 args = [self.evaluate(arg) for arg in expr.arguments]
                 return obj.callMethod(expr.method, args)
+            elif isinstance(obj, (str, int, float, list, dict, tuple)):
+                # Méthodes natives Python (ex: "texte".upper(), maListe.append(x))
+                # pour les valeurs qui ne passent pas par OktopiosMap/OktopiosList.
+                method_fn = getattr(obj, expr.method, None)
+                if method_fn is None or not callable(method_fn):
+                    raise Exception(f"[Erreur] Méthode inconnue : {type(obj).__name__}.{expr.method}({args})")
+                try:
+                    return method_fn(*args)
+                except TypeError as e:
+                    raise Exception(f"[Erreur] Appel invalide de {type(obj).__name__}.{expr.method}({args}) : {e}")
             else:
                 raise Exception(f"[Erreur] Méthode inconnue : {type(obj).__name__}.{expr.method}({args})")
         elif isinstance(expr, ModuleFuncCall):
@@ -1051,7 +1717,6 @@ class Interpreter:
         else:
             print(Fore.YELLOW + f"[Info] Classe '{cname}' activée sans méthode main()" + Style.RESET_ALL)
             return None
-
 
     # ---- TYPE UTILS ----
     def normalize_type(self, type_name_or_value):
@@ -1293,7 +1958,6 @@ class Interpreter:
                 # (optionnel, pour compatibilité)
                 self.env.define(stmt.name, value=func, arity=len(stmt.params))
 
-
     def visit_EnumDeclaration(self, stmt):
         enum_obj = RuntimeEnum(
             name=stmt.name,
@@ -1361,7 +2025,7 @@ class Interpreter:
         instance = RuntimeInstance(class_decl, constructor_args=args, interpreter=self)
 
         # --- Helper : créer/binder un UserFunction depuis FunDecl ou depuis RuntimeClass.methods entry
-        def make_bound_userfunction(maybe_decl_or_userfunc):
+        def make_bound_userfunction(maybe_decl_or_userfunc, owner=None):
             # Si c'est déjà un UserFunction (ex: RuntimeClass.methods stocke UserFunction), binder si besoin
             from . user_function import UserFunction
             if isinstance(maybe_decl_or_userfunc, UserFunction):
@@ -1373,26 +2037,42 @@ class Interpreter:
                 return UserFunction(maybe_decl_or_userfunc.declaration or maybe_decl_or_userfunc.native,
                                     maybe_decl_or_userfunc.closure,
                                     instance=instance)
-            # sinon on suppose un FunDecl AST
-            return UserFunction(maybe_decl_or_userfunc, getattr(class_decl, "closure", None), instance=instance)
+            # sinon on suppose un FunDecl AST — utilise le closure de la classe qui définit
+            # réellement la méthode (owner), important pour les méthodes héritées
+            owner_decl = owner if owner is not None else class_decl
+            return UserFunction(maybe_decl_or_userfunc, getattr(owner_decl, "closure", None), instance=instance)
 
         # --- Trouver constructeur / destructeur (s'adapte si class_decl est AST ou RuntimeClass)
-        constructor_decl = None
-        destructor_decl = None
+        # Remonte la chaîne des superclasses si la classe elle-même n'en définit pas
+        # (sinon une classe enfant sans __construct utilisait un constructeur vide
+        # et perdait silencieusement les arguments passés à 'new Enfant(...)').
+        def find_method_owner(decl, method_name, visited=None):
+            visited = visited if visited is not None else set()
+            if id(decl) in visited:
+                return None, None
+            visited.add(id(decl))
 
-        # cas : RuntimeClass-like (méthodes déjà pré-construites comme UserFunction)
-        if hasattr(class_decl, "methods") and isinstance(class_decl.methods, dict):
-            # RuntimeClass: methods: name -> UserFunction
-            constructor_decl = class_decl.methods.get("__construct")
-            destructor_decl = class_decl.methods.get("__destruct")
-        else:
-            # AST ClassDeclaration: methods est une liste de FunDecl AST
-            constructor_decl = next((m for m in getattr(class_decl, "methods", []) if m.name == "__construct"), None)
-            destructor_decl = next((m for m in getattr(class_decl, "methods", []) if m.name == "__destruct"), None)
+            if hasattr(decl, "methods") and isinstance(decl.methods, dict):
+                found = decl.methods.get(method_name)
+                if found is not None:
+                    return found, decl
+            else:
+                found = next((m for m in getattr(decl, "methods", []) if m.name == method_name), None)
+                if found is not None:
+                    return found, decl
+
+            for parent in (getattr(decl, "superclass", None) or []):
+                m, owner = find_method_owner(parent, method_name, visited)
+                if m is not None:
+                    return m, owner
+            return None, None
+
+        constructor_decl, constructor_owner = find_method_owner(class_decl, "__construct")
+        destructor_decl, destructor_owner = find_method_owner(class_decl, "__destruct")
 
         # --- Normaliser et stocker un UserFunction bound pour le constructeur
         if constructor_decl is not None:
-            bound_ctor = make_bound_userfunction(constructor_decl)
+            bound_ctor = make_bound_userfunction(constructor_decl, owner=constructor_owner)
             instance.fieldsMeth["__construct"] = bound_ctor
         else:
             # constructeur par défaut (callable Python simple)
@@ -1405,7 +2085,7 @@ class Interpreter:
 
         # --- Normaliser et stocker un UserFunction bound pour le destructeur
         if destructor_decl is not None:
-            bound_dtor = make_bound_userfunction(destructor_decl)
+            bound_dtor = make_bound_userfunction(destructor_decl, owner=destructor_owner)
             instance.fieldsMeth["__destruct"] = bound_dtor
         else:
             def default_destructor():
@@ -1419,22 +2099,22 @@ class Interpreter:
 
             instance.fieldsMeth["__destruct"] = default_destructor
 
-        # --- Appel automatique du constructeur si args fournis (évaluer d'abord)
-        if args:
-            evaluated_args = []
-            if self is not None:
-                evaluated_args = [
-                    self.evaluate(a) if not isinstance(a, (int, float, str, bool, list)) else a
-                    for a in args
-                ]
-            else:
-                evaluated_args = args
+        # --- Appel automatique du constructeur (toujours, même sans arguments —
+        #     un constructeur à zéro paramètre doit quand même s'exécuter)
+        evaluated_args = []
+        if self is not None:
+            evaluated_args = [
+                self.evaluate(a) if not isinstance(a, (int, float, str, bool, list)) else a
+                for a in args
+            ]
+        else:
+            evaluated_args = args
 
-            ctor = instance.fieldsMeth.get("__construct")
-            if isinstance(ctor, UserFunction):
-                ctor.call(self, evaluated_args)
-            elif callable(ctor):
-                ctor(*evaluated_args)
+        ctor = instance.fieldsMeth.get("__construct")
+        if isinstance(ctor, UserFunction):
+            ctor.call(self, evaluated_args)
+        elif callable(ctor):
+            ctor(*evaluated_args)
 
         # --- Enregistrement de destruction automatique (façon faibles références)
         #import weakref
@@ -1884,6 +2564,8 @@ class Interpreter:
                         break
 
                 index += step
+            return  # bug trouvé en testant : sans ce return, on retombait dans
+                     # la "BOUCLE STANDARD" plus bas et on ré-itérait en plus
 
 
         # --- SLEEPING LOOP ---
@@ -1911,6 +2593,189 @@ class Interpreter:
                     except ContinueException:
                         continue
             return  # éviter de re-boucler ensuite
+
+        # --- SPIRAL : parcours hélicoïdal d'une matrice ---
+        if kind == "spiral":
+            matrix = [list(row) for row in self.evaluate(stmt.iterator)]
+            n_rows = len(matrix)
+            n_cols = len(matrix[0]) if n_rows else 0
+            total = n_rows * n_cols
+            if total == 0:
+                return
+
+            mods = stmt.modifiers or {}
+            origin = "center"
+            direction = "clockwise"
+            if "from" in mods:
+                origin = mods["from"].get("origin", "center")
+                direction = mods["from"].get("direction", "clockwise")
+
+            if origin == "top_left":
+                start_r, start_c = 0, 0
+            else:
+                start_r, start_c = n_rows // 2, n_cols // 2
+
+            if direction == "counterclockwise":
+                dirs = [(0, 1), (-1, 0), (0, -1), (1, 0)]   # droite, haut, gauche, bas
+            else:
+                dirs = [(0, 1), (1, 0), (0, -1), (-1, 0)]   # droite, bas, gauche, haut
+
+            visited = set()
+            order = []
+            r, c = start_r, start_c
+            if 0 <= r < n_rows and 0 <= c < n_cols:
+                order.append((r, c))
+                visited.add((r, c))
+
+            leg = 1
+            dir_idx = 0
+            safety = 0
+            max_leg = n_rows + n_cols + 2
+            while len(order) < total and safety < 10000:
+                safety += 1
+                for _ in range(2):
+                    dr, dc = dirs[dir_idx % 4]
+                    for _ in range(leg):
+                        r += dr
+                        c += dc
+                        if 0 <= r < n_rows and 0 <= c < n_cols and (r, c) not in visited:
+                            order.append((r, c))
+                            visited.add((r, c))
+                            if len(order) >= total:
+                                break
+                    dir_idx += 1
+                    if len(order) >= total:
+                        break
+                leg += 1
+                if leg > max_leg:
+                    break
+
+            for (rr, cc) in order:
+                if isinstance(stmt.var_name, tuple):
+                    self.env.define(stmt.var_name[0], rr)
+                    self.env.define(stmt.var_name[1], cc)
+                else:
+                    self.env.define(stmt.var_name, matrix[rr][cc])
+                try:
+                    for s in stmt.body:
+                        self.execute(s)
+                except BreakException:
+                    break
+                except ContinueException:
+                    continue
+            return
+
+        # --- WAVE : parcours oscillatoire (zig-zag) ---
+        if kind == "wave":
+            mods = stmt.modifiers or {}
+
+            if "amplitude" in mods:
+                # liste plate traitée comme une matrice implicite de largeur 'amplitude'
+                flat = list(self.evaluate(stmt.iterator))
+                width = int(self.evaluate(mods["amplitude"]))
+                if width <= 0:
+                    width = len(flat) or 1
+                chunks = [flat[i:i + width] for i in range(0, len(flat), width)]
+                for idx, chunk in enumerate(chunks):
+                    seq = chunk if idx % 2 == 0 else list(reversed(chunk))
+                    for item in seq:
+                        self.env.define(stmt.var_name, item)
+                        try:
+                            for s in stmt.body:
+                                self.execute(s)
+                        except BreakException:
+                            return
+                        except ContinueException:
+                            continue
+                return
+
+            matrix = [list(row) for row in self.evaluate(stmt.iterator)]
+            axis = mods.get("by", "row")
+
+            if axis == "column":
+                n_cols = len(matrix[0]) if matrix else 0
+                for ci in range(n_cols):
+                    col = [matrix[ri][ci] for ri in range(len(matrix))]
+                    seq = col if ci % 2 == 0 else list(reversed(col))
+                    self.env.define(stmt.var_name, OktopiosList(seq))
+                    try:
+                        for s in stmt.body:
+                            self.execute(s)
+                    except BreakException:
+                        break
+                    except ContinueException:
+                        continue
+            else:
+                for ri, row in enumerate(matrix):
+                    seq = row if ri % 2 == 0 else list(reversed(row))
+                    self.env.define(stmt.var_name, OktopiosList(seq))
+                    try:
+                        for s in stmt.body:
+                            self.execute(s)
+                    except BreakException:
+                        break
+                    except ContinueException:
+                        continue
+            return
+
+        # --- SECTORS : découpage radial, optionnellement parallèle ---
+        if kind == "sectors":
+            mods = stmt.modifiers or {}
+
+            if "rows" in mods and "cols" in mods:
+                matrix = [list(row) for row in self.evaluate(stmt.iterator)]
+                n_rows = len(matrix)
+                n_cols = len(matrix[0]) if n_rows else 0
+                block_rows = max(1, int(self.evaluate(mods["rows"])))
+                block_cols = max(1, int(self.evaluate(mods["cols"])))
+                row_size = max(1, -(-n_rows // block_rows))
+                col_size = max(1, -(-n_cols // block_cols))
+                sectors_list = []
+                for br in range(0, n_rows, row_size):
+                    for bc in range(0, n_cols, col_size):
+                        zone = [OktopiosList(r[bc:bc + col_size]) for r in matrix[br:br + row_size]]
+                        sectors_list.append(OktopiosList(zone))
+            else:
+                items = list(self.evaluate(stmt.iterator))
+                count = max(1, int(self.evaluate(mods["count"]))) if "count" in mods else 1
+                n = len(items)
+                size = max(1, -(-n // count)) if n else 1
+                sectors_list = [OktopiosList(items[i:i + size]) for i in range(0, n, size)]
+
+            if not mods.get("parallel"):
+                for sector in sectors_list:
+                    self.env.define(stmt.var_name, sector)
+                    try:
+                        for s in stmt.body:
+                            self.execute(s)
+                    except BreakException:
+                        break
+                    except ContinueException:
+                        continue
+                return
+
+            # --- parallel : chaque secteur sur un thread distinct ---
+            # self.env est désormais PAR THREAD (voir plus haut dans ce fichier),
+            # donc chaque secteur peut s'exécuter en vrai parallèle sans piétiner
+            # les autres — exactement "une tentacule par secteur".
+            def run_sector(sector_value):
+                local_env = Environment(enclosing=self.global_env)
+                prev = self.env
+                self.env = local_env
+                try:
+                    self.env.define(stmt.var_name, sector_value)
+                    for s in stmt.body:
+                        self.execute(s)
+                except (BreakException, ContinueException):
+                    pass
+                finally:
+                    self.env = prev
+
+            with ThreadPoolExecutor(max_workers=min(8, len(sectors_list) or 1)) as pool:
+                futures = [pool.submit(run_sector, sector) for sector in sectors_list]
+                for f in futures:
+                    f.result()
+            return
 
         # --- BOUCLE STANDARD ---
         for item in iterable:
@@ -2188,6 +3053,305 @@ class Interpreter:
             pattern_value = self.evaluate(pattern)
             return value == pattern_value
 
+    # ------------------------------------------------------------------
+    # neuron_loop / __matches_db__  (mémoire associative "Elementor")
+    # ------------------------------------------------------------------
+    def visit_NeuronLoopDecl(self, decl):
+        db = NeuronLoopDB(decl.name)
+        for neuro_block in decl.neurons:
+            db.add_neuron(self.build_neuron_runtime(neuro_block))
+        db.build_index()  # index (champ, valeur) -> emplacements, construit une seule fois
+        with self._shared_lock:
+            self.matches_db[decl.name] = db
+        self.env.define(decl.name, db)
+        return None
+
+    def build_neuron_runtime(self, neuro_block):
+        enter = {cat: self.evaluate(expr) for cat, expr in neuro_block.enter.items()}
+        out_blocks = {
+            out_name: {
+                "ports": {cat: self.evaluate(expr) for cat, expr in block["ports"].items()},
+                "target": block["target"],
+            }
+            for out_name, block in neuro_block.out_blocks.items()
+        }
+        memory = self.build_category_section(neuro_block.memory)
+        elementor = self.build_category_section(neuro_block.elementor)
+        return NeuroRuntime(neuro_block.name, enter, memory, elementor, out_blocks)
+
+    def build_category_section(self, categories):
+        result = {}
+        for category, entries in categories.items():
+            store = CategoryStore()
+            for ref_name, entry in entries.items():
+                store.place(ref_name, self.build_ref_entry(entry))
+            result[category] = store
+        return result
+
+    def build_ref_entry(self, entry):
+        id_value = self.evaluate(entry.id_expr)
+        data = {}
+        for key_expr, value_node in entry.data_pairs:
+            key_value = self.evaluate(key_expr)
+            if isinstance(value_node, RefValue):
+                data[key_value] = RefMarker(value_node.name)
+            else:
+                data[key_value] = self.evaluate(value_node)
+        return RefEntryRuntime(entry.name, id_value, data)
+
+    def _find_matches(self, db, value, motif, threshold_count):
+        """ÉTAPE COMMUNE À TOUTE REQUÊTE __matches_db__, quel que soit le verbe
+        (select / insert / update / delete / reflexion) : la correspondance.
+        C'est le principe biologique de base — un cerveau qui reçoit une
+        information commence TOUJOURS par essayer de la reconnaître avant
+        d'agir dessus (mémoriser, corriger, oublier, ou simplement se
+        rappeler). Aucun verbe ne contourne cette étape.
+
+        Renvoie une liste de (neuro_name, section, categorie, ref_name, entry, count)."""
+        candidate_locations = db.candidates_for_value(value)
+        if candidate_locations:
+            candidates = {loc: self._location_entry(db, loc) for loc in candidate_locations}
+        else:
+            candidates = {(n, s, c, r): e for n, s, c, r, e in db.all_locations()}
+
+        matches = []
+        for (neuro_name, section, category, ref_name), entry in candidates.items():
+            count = self.count_motif_matches(db, neuro_name, entry, motif)
+            if count >= threshold_count:
+                matches.append((neuro_name, section, category, ref_name, entry, count))
+        return matches
+
+    def visit_MatchesDbExpr(self, expr):
+        value = self.evaluate(expr.value)
+        db = self.matches_db.get(expr.db_name)
+        if db is None:
+            raise Exception(
+                f"[Erreur] Base __matches_db__ inconnue : '{expr.db_name}' "
+                f"(aucune déclaration 'neuron_loop {expr.db_name}' trouvée)."
+            )
+
+        # Verrou PROPRE À CETTE BASE (pas un verrou global) : deux tentacules
+        # qui interrogent des bases __matches_db__ DIFFÉRENTES restent donc
+        # vraiment parallèles ; seules les requêtes sur LA MÊME base sont
+        # sérialisées entre elles (lecture comme écriture), ce qui évite
+        # toute corruption de l'index ou des structures internes.
+        with db.lock:
+            verb = getattr(expr, "verb", None) or "select"
+
+            # Axon Hillock : seuil de déclenchement.
+            # - select/insert/update/delete (défaut) : TOUTES les conditions du motif.
+            # - reflexion (défaut) : associatif/exploratoire, un seul indice suffit
+            #   à amorcer la pensée — comme une réminiscence partielle.
+            if expr.threshold is not None:
+                threshold_count = self.evaluate(expr.threshold)
+            elif verb == "reflexion":
+                threshold_count = 1 if expr.motif else 0
+            else:
+                threshold_count = len(expr.motif)
+
+            # --- LA correspondance, commune à tous les verbes ---
+            matches = self._find_matches(db, value, expr.motif, threshold_count)
+
+            if verb == "delete":
+                return self._verb_delete(db, matches)
+            if verb == "update":
+                return self._verb_update(db, matches, expr.set_clause)
+            if verb == "reflexion":
+                return self._verb_reflexion(db, matches, expr.motif, threshold_count)
+
+            # --- select / insert (insert = select qui autocrée si rien ne répond) ---
+            results = []
+            for neuro_name, section, category, ref_name, entry, count in matches:
+                # Schwann Cell : le signal se propage le long de l'axone vers le(s)
+                # neurone(s) connecté(s) via 'target', tant que ceux-ci répondent
+                # eux aussi au même motif/seuil (sinon la propagation s'arrête là).
+                propagation = self.propagate(db, neuro_name, expr.motif, threshold_count)
+                results.append(self._entry_to_okp(
+                    neuro_name, section, category, ref_name, entry,
+                    fired=True, matched_criteria=count, threshold=threshold_count,
+                    propagation=propagation,
+                ))
+
+            # Aucune correspondance : on crée un nouveau neurone/élément si
+            # 'autocreate <categorie>' (ou 'insert <categorie>') a été demandé,
+            # en respectant les limites Elementor (7 x 8 x 7000).
+            if not results and expr.autocreate:
+                data = self._motif_to_data(expr.motif, value)
+                try:
+                    neuro_name, ref_name, entry, neuron_created = db.create_element(expr.autocreate, data)
+                except CapacityFullError as e:
+                    raise Exception(f"[Erreur] __matches_db__ autocreate '{expr.db_name}.{expr.autocreate}' : {e}")
+
+                results.append(self._entry_to_okp(
+                    neuro_name, "elementor", expr.autocreate, ref_name, entry,
+                    fired=True, matched_criteria=0, threshold=threshold_count,
+                    propagation=[neuro_name], created=True, neuron_created=neuron_created,
+                ))
+
+            return OktopiosList(results)
+
+    def _verb_delete(self, db, matches):
+        """DELETE : la correspondance détermine QUOI supprimer — rien n'est
+        jamais supprimé sans avoir d'abord été reconnu."""
+        deleted = []
+        for neuro_name, section, category, ref_name, entry, count in matches:
+            neuro = db.neurons[neuro_name]
+            section_map = neuro.memory if section == "memory" else neuro.elementor
+            store = section_map.get(category)
+            if store is not None:
+                store.remove(ref_name)
+            # Désindexation incrémentale (O(champs de l'entrée), jamais un
+            # rebuild complet — important sur une grosse base).
+            db.unindex_entry(neuro_name, section, category, ref_name, entry)
+            deleted.append(self._entry_to_okp(
+                neuro_name, section, category, ref_name, entry,
+                fired=True, matched_criteria=count, threshold=None, propagation=[neuro_name],
+            ))
+        return OktopiosList(deleted)
+
+    def _verb_update(self, db, matches, set_clause):
+        """UPDATE : la correspondance détermine QUOI modifier ; 'set {...}'
+        indique les nouvelles valeurs à appliquer sur chaque entrée trouvée."""
+        if not set_clause:
+            raise Exception("[Erreur] __matches_db__ update nécessite une clause 'set { ... }'")
+        new_values = {self.evaluate(k): self.evaluate(v) for k, v in set_clause}
+
+        updated = []
+        for neuro_name, section, category, ref_name, entry, count in matches:
+            # Désindexe l'ANCIEN état, applique les nouvelles valeurs, puis
+            # réindexe le NOUVEL état — incrémental, jamais un rebuild complet.
+            db.unindex_entry(neuro_name, section, category, ref_name, entry)
+            entry.data.update(new_values)
+            db.index_entry(neuro_name, section, category, ref_name, entry)
+            updated.append(self._entry_to_okp(
+                neuro_name, section, category, ref_name, entry,
+                fired=True, matched_criteria=count, threshold=None, propagation=[neuro_name],
+            ))
+        return OktopiosList(updated)
+
+    def _verb_reflexion(self, db, matches, motif, threshold_count):
+        """REFLEXION : exploration purement associative, AUCUNE mutation.
+        Met en avant la chaîne de propagation (ce à quoi la pensée 'mène')
+        plutôt que la simple liste des entrées correspondantes."""
+        thoughts = []
+        seen_chains = set()
+        for neuro_name, section, category, ref_name, entry, count in matches:
+            propagation = self.propagate(db, neuro_name, motif, threshold_count)
+            chain_key = tuple(propagation)
+            if chain_key in seen_chains:
+                continue
+            seen_chains.add(chain_key)
+            thoughts.append(self._entry_to_okp(
+                neuro_name, section, category, ref_name, entry,
+                fired=True, matched_criteria=count, threshold=threshold_count,
+                propagation=propagation,
+            ))
+        return OktopiosList(thoughts)
+
+    def _motif_to_data(self, motif, value):
+        """Construit les données d'un nouvel élément à partir du motif :
+        chaque champ avec une valeur concrète (ValuePattern) est repris tel
+        quel ; les autres (is/between/like/=>...) ne peuvent pas être
+        traduits en valeur concrète et sont laissés vides ([])."""
+        data = {}
+        for field_expr, pattern in motif:
+            field_name = self.evaluate(field_expr)
+            if isinstance(pattern, ValuePattern):
+                data[field_name] = self.evaluate(pattern.expr)
+            else:
+                data[field_name] = []
+        return data
+
+    def _location_entry(self, db, loc):
+        neuro_name, section, category, ref_name = loc
+        neuro = db.neurons[neuro_name]
+        section_map = neuro.memory if section == "memory" else neuro.elementor
+        return section_map[category][ref_name]
+
+    def count_motif_matches(self, db, neuro_name, entry, motif):
+        """Nombre de critères du motif satisfaits par cette entrée (utilisé
+        à la fois pour le filtrage et pour le seuil de déclenchement)."""
+        count = 0
+        for field_expr, pattern in motif:
+            field_name = self.evaluate(field_expr)
+            field_value = entry.data.get(field_name)
+            if self.match_db_pattern(db, neuro_name, field_value, pattern):
+                count += 1
+        return count
+
+    def neuron_fires(self, db, neuro_name, motif, threshold_count):
+        """Vrai si AU MOINS une entrée de ce neurone (memory ou elementor)
+        atteint le seuil pour ce motif — sert à la propagation synaptique."""
+        neuro = db.neurons.get(neuro_name)
+        if neuro is None:
+            return False
+        for section in (neuro.memory, neuro.elementor):
+            for entries in section.values():
+                for entry in entries.values():
+                    if self.count_motif_matches(db, neuro_name, entry, motif) >= threshold_count:
+                        return True
+        return False
+
+    def propagate(self, db, start_neuro_name, motif, threshold_count, _visited=None):
+        """Chemin de propagation du signal : neurone de départ, puis chaque
+        neurone cible (via out_X.target) qui répond encore au même motif,
+        de proche en proche — comme un potentiel d'action qui sautille de
+        nœud de Ranvier en nœud de Ranvier jusqu'au prochain neurone."""
+        visited = _visited if _visited is not None else set()
+        if start_neuro_name in visited:
+            return []
+        visited.add(start_neuro_name)
+
+        chain = [start_neuro_name]
+        neuro = db.neurons.get(start_neuro_name)
+        if neuro is None:
+            return chain
+
+        for _out_name, target in neuro.synapse_targets():
+            if target in visited or target not in db.neurons:
+                continue
+            if self.neuron_fires(db, target, motif, threshold_count):
+                chain.extend(self.propagate(db, target, motif, threshold_count, visited))
+                break  # un seul chemin de propagation actif à la fois
+
+        return chain
+
+    def _entry_to_okp(self, neuro_name, section, category, ref_name, entry,
+                       fired=None, matched_criteria=None, threshold=None, propagation=None,
+                       created=None, neuron_created=None):
+        payload = {
+            "neuron": neuro_name,
+            "section": section,
+            "category": category,
+            "ref": ref_name,
+            "id": entry.id,
+            "data": OktopiosMap(entry.to_okp_dict()),
+        }
+        if fired is not None:
+            payload["fired"] = fired
+            payload["matched_criteria"] = matched_criteria
+            payload["threshold"] = threshold
+            payload["propagation"] = OktopiosList(propagation or [])
+        if created is not None:
+            payload["created"] = created
+            payload["neuron_created"] = bool(neuron_created)
+        return OktopiosMap(payload)
+
+    def match_db_pattern(self, db, neuro_name, field_value, pattern):
+        # `=> nom` dans le motif : vrai si le champ EST une référence vers `nom`.
+        if isinstance(pattern, DbRefPattern):
+            return isinstance(field_value, RefMarker) and field_value.name == pattern.name
+
+        # Sinon, une référence non résolue est comparée via sa cible résolue.
+        if isinstance(field_value, RefMarker):
+            resolved = db.resolve_marker(neuro_name, field_value)
+            field_value = resolved.to_okp_dict() if resolved else None
+
+        try:
+            return self.match_pattern(field_value, pattern)
+        except Exception:
+            return False
+
     def visit_IsTypeExpr(self, expr):
         value = self.evaluate(expr.expr)
 
@@ -2229,6 +3393,8 @@ class Interpreter:
         # 🔥 Chercher avec signature complète d'abord
         full_key = f"{name}/{arity}/{type_signature}"
         func = self.env.get(full_key, suppress_errors=True)
+        if func is NOT_FOUND:
+            func = None
 
         # 🔥 Sinon, chercher seulement par arité (compatible avec conversion implicite ?)
         if func is None:
@@ -2261,20 +3427,35 @@ class Interpreter:
         # 🔹 Sinon, essayer sans arité (pour les fonctions avec valeur par défaut)
         if func is None:
             func = self.env.get(name, suppress_errors=True)
+            if func is NOT_FOUND:
+                func = None
 
-        # ✅ AJOUT : vérifier l'arité du fallback
-        if func is not None and isinstance(func, UserFunction):
-            expected_arity = len(func.declaration.params)
-            if len(args) != expected_arity:
+        # ✅ Vérifier l'arité du fallback, en tenant compte des paramètres à
+        # valeur par défaut (le code ci-dessus dit explicitement que ce
+        # fallback sert "pour les fonctions avec valeur par défaut", mais la
+        # vérification exigeait une arité EXACTE et bloquait donc justement
+        # ce cas — bug trouvé via la suite de tests).
+        if func is not None and isinstance(func, UserFunction) and func.declaration is not None:
+            params = func.declaration.params
+            expected_arity = len(params)
+            min_required = sum(1 for p in params if p[3] is None)
+            if len(args) < min_required or len(args) > expected_arity:
+                if min_required == expected_arity:
+                    raise Exception(
+                        f"[Erreur] La fonction '{name}' attend {expected_arity} argument(s), "
+                        f"mais {len(args)} ont été fournis."
+                    )
                 raise Exception(
-                    f"[Erreur] La fonction '{name}' attend {expected_arity} argument(s), "
-                    f"mais {len(args)} ont été fournis."
+                    f"[Erreur] La fonction '{name}' attend entre {min_required} et {expected_arity} "
+                    f"argument(s), mais {len(args)} ont été fournis."
                 )
 
 
         # 🔹 Sinon, essayer une variable contenant une fonction
         if func is None:
             value = self.env.get(name, arity=None, suppress_errors=True)
+            if value is NOT_FOUND:
+                value = None
             if self.is_callable(value):
                 func = value
 
@@ -2502,6 +3683,8 @@ class Interpreter:
             val = None
             if hasattr(env, "get"):
                 val = env.get(name, suppress_errors=True)
+                if val is NOT_FOUND:
+                    val = None
             if val is None:
                 for field in ("values", "store", "_values", "symbols"):
                     if hasattr(env, field):

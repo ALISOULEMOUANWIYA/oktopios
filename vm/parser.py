@@ -61,6 +61,8 @@ class Parser:
                 enmm = self.parse_enum_decl()
                 #print("Debug : dans declaration TokenType.ENUM ", enmm)
                 return enmm
+            elif self.match(TokenType.NEURON_LOOP):
+                return self.parse_neuron_loop_decl()
             else:
                 return self.statement()
         except ParseError as error:
@@ -77,6 +79,11 @@ class Parser:
             id = self.consume(TokenType.ID, Fore.CYAN + "Nom de variable attendu" + Style.RESET_ALL)
         name = id.value
 
+        # --- Déclaration multiple, forme A : "x, y, a : int = 1, 2, 3" ---
+        # (signal : une virgule arrive juste après le nom, avant tout ':' ou '=')
+        if self.check(TokenType.COMMA):
+            return self.multi_var_decl(name, None, False, is_const, access_modifier, is_static)
+
         if self.match(TokenType.COLON):
             type_ = self.consume_type()
         else:
@@ -85,6 +92,10 @@ class Parser:
 
         if self.match(TokenType.EQ):
             value = self.expression()
+            # --- Déclaration multiple, forme B : "x = 1, y = 2, a = 3" ---
+            # (signal : une virgule arrive APRÈS 'name = value', pas avant)
+            if type_ is None and self.check(TokenType.COMMA):
+                return self.multi_var_decl(name, value, True, is_const, access_modifier, is_static)
 
         # Vérification de cohérence
         if type_ is not None and isinstance(value, Literal):
@@ -118,6 +129,72 @@ class Parser:
         #print("\nDebug : var_decl", "\nname = ",name, "\ntype_ = ",type_, "\nvalue = ",value, "\nis_const = ",is_const, "\naccess_modifier = ",access_modifier, "\nis_static = ",is_static)
 
         return VarDecl(name=name, type_=type_, value=value, is_constant=is_const, access_modifier=access_modifier, is_static=is_static)
+
+    def multi_var_decl(self, first_name, first_value, first_has_value, is_const, access_modifier, is_static):
+        """Gère les deux formes de déclaration multiple :
+        - 'x, y, a : int = 1, 2, 3'  (type partagé, valeurs appariées par position)
+        - 'x = 1, y = 2, a = 3'      (chaque variable a déjà sa propre valeur)
+        `first_has_value` indique si first_value a déjà été parsé (forme B,
+        détectée après coup) ou non (forme A, détectée avant tout '=')."""
+        segment_names = [first_name]
+        segment_values = [first_value if first_has_value else None]
+
+        while self.match(TokenType.COMMA):
+            seg_name_tok = self.consume(TokenType.ID, "Nom de variable attendu après ','")
+            segment_names.append(seg_name_tok.value)
+            if self.match(TokenType.EQ):
+                segment_values.append(self.expression())
+            else:
+                segment_values.append(None)
+
+        if self.check(TokenType.COLON):
+            # --- FORME A : type partagé, valeurs après '=' séparées par des virgules ---
+            if any(v is not None for v in segment_values):
+                raise self.error(
+                    self.peek(),
+                    "Mélange invalide : utilisez soit 'x, y : type = v1, v2' soit 'x = v1, y = v2', pas les deux."
+                )
+            self.consume(TokenType.COLON, "Attendu ':' après la liste de noms")
+            shared_type = self.consume_type()
+            self.consume(TokenType.EQ, "Attendu '=' après le type dans une déclaration multiple")
+            value_exprs = [self.expression()]
+            while self.match(TokenType.COMMA):
+                value_exprs.append(self.expression())
+
+            if len(value_exprs) != len(segment_names):
+                raise self.error(
+                    self.peek(),
+                    f"Nombre de valeurs ({len(value_exprs)}) ne correspond pas au nombre de "
+                    f"variables ({len(segment_names)}) : {', '.join(segment_names)}"
+                )
+
+            decls = [
+                VarDecl(name=n, type_=shared_type, value=v, is_constant=is_const,
+                        access_modifier=access_modifier, is_static=is_static)
+                for n, v in zip(segment_names, value_exprs)
+            ]
+            return MultiVarDecl(decls)
+
+        # --- FORME B : chaque variable porte déjà sa propre valeur ---
+        missing = [n for n, v in zip(segment_names, segment_values) if v is None]
+        if missing:
+            raise self.error(
+                self.peek(),
+                f"Valeur manquante pour : {', '.join(missing)} (forme attendue : 'x = 1, y = 2')"
+            )
+
+        decls = []
+        for n, v in zip(segment_names, segment_values):
+            t = None
+            if isinstance(v, ListLiteral):
+                t = list.__name__
+            elif isinstance(v, DictLiteral):
+                t = dict.__name__
+            elif isinstance(v, NewInstanceExpr):
+                t = v.class_name
+            decls.append(VarDecl(name=n, type_=t, value=v, is_constant=is_const,
+                                  access_modifier=access_modifier, is_static=is_static))
+        return MultiVarDecl(decls)
 
     # --------------------------
     #dans le parser.py
@@ -232,11 +309,62 @@ class Parser:
 
             # Pieuvre blocks
             if self.match(TokenType.HEART):
+                heart_name = None
+                if self.check(TokenType.STR):
+                    heart_name = self.advance().value
                 self.consume(TokenType.LBRACE, "Attendu '{' apres heart")
-                members.append(HeartBlock(self.block()))
+                # Scope le registre anti-doublon de fonctions par heart (et
+                # non plus seulement par classe) : sans ça, deux hearts du
+                # même 'tent class' ne pouvaient jamais définir une fonction
+                # du même nom (ex: 'status'), même dans des hearts différents.
+                previous_class_for_heart = self.current_class
+                self.current_class = f"{class_name}::heart::{heart_name or f'_anon_{len(members)}'}"
+                heart_body = self.block()
+                self.current_class = previous_class_for_heart
+                members.append(HeartBlock(heart_body, name=heart_name))
             elif self.match(TokenType.CORE):
                 self.consume(TokenType.LBRACE, "Attendu '{' apres core")
-                members.append(CoreBlock(self.block()))
+                # Tous les core{} d'une même classe partagent le même registre
+                # (ils partagent aussi le même environnement à l'exécution).
+                previous_class_for_core = self.current_class
+                self.current_class = f"{class_name}::core"
+                core_body = self.block()
+                self.current_class = previous_class_for_core
+                members.append(CoreBlock(core_body))
+            elif self.match(TokenType.DIRECTOR):
+                self.consume(TokenType.LBRACE, "Attendu '{' apres director")
+                previous_class_for_director = self.current_class
+                self.current_class = f"{class_name}::director"
+                director_body = self.block()
+                self.current_class = previous_class_for_director
+                members.append(DirectorBlock(director_body))
+            elif self.match(TokenType.SUPEVISOR):
+                supervisor_name = None
+                if self.check(TokenType.STR):
+                    supervisor_name = self.advance().value
+                self.consume(TokenType.LBRACE, "Attendu '{' apres supervisor")
+                previous_class_for_supervisor = self.current_class
+                self.current_class = f"{class_name}::supervisor::{supervisor_name or f'_anon_{len(members)}'}"
+                supervisor_body = self.block()
+                self.current_class = previous_class_for_supervisor
+                members.append(SupervisorBlock(supervisor_body, name=supervisor_name))
+            elif self.match(TokenType.AGENT):
+                agent_name = None
+                if self.check(TokenType.STR):
+                    agent_name = self.advance().value
+                self.consume(TokenType.LBRACE, "Attendu '{' apres agent")
+                previous_class_for_agent = self.current_class
+                self.current_class = f"{class_name}::agent::{agent_name or f'_anon_{len(members)}'}"
+                agent_body = self.block()
+                self.current_class = previous_class_for_agent
+                members.append(AgentBlock(agent_body, name=agent_name))
+            elif self.match(TokenType.SECRETARY):
+                self.consume(TokenType.LBRACE, "Attendu '{' apres secretary")
+                previous_class_for_secretary = self.current_class
+                self.current_class = f"{class_name}::secretary"
+                secretary_body = self.block()
+                self.current_class = previous_class_for_secretary
+                members.append(SecretaryBlock(secretary_body))
             # Variables
             elif self.match(TokenType.VAR):
                 varde = self.var_decl(False, access_modifier=access_modifier, is_static=is_static_fun_or_var)
@@ -397,7 +525,8 @@ class Parser:
         elif self.check(TokenType.LOOP) or self.check(TokenType.FILTER_LOOP) or self.check(
                 TokenType.FILTER_WHILE) or self.check(TokenType.SORT_LOOP) or self.check(
                 TokenType.PERMUTE_LOOP) or self.check(TokenType.PERMUTE_WHILE) or self.check(
-                TokenType.CIRCULAR_LOOP) or self.check(TokenType.SLEEPING_LOOP):
+                TokenType.CIRCULAR_LOOP) or self.check(TokenType.SLEEPING_LOOP) or self.check(
+                TokenType.SPIRAL) or self.check(TokenType.WAVE) or self.check(TokenType.SECTORS):
             return self.smart_loop()
         elif self.check(TokenType.ID) and self.check_next(TokenType.EQ):
             # print("Debug : statement assignment_stmt")
@@ -770,6 +899,44 @@ class Parser:
             expr = self.value_matche_variable if self.value_matche_variable != None else expr
             return MatchesExpr(expr, pattern)
 
+        # --- valeur __matches_db__ NomDB [threshold N] [autocreate CATEGORIE]
+        #     [insert CATEGORIE | update | delete | reflexion | select] { motif } [set { ... }] ---
+        if self.match(TokenType.IS_MATCHES_DB):
+            db_name_token = self.consume(TokenType.ID, "Nom de la base attendu après '__matches_db__'")
+            threshold_expr = None
+            if self.match(TokenType.THRESHOLD):
+                threshold_expr = self.parse_term()
+            autocreate_category = None
+            if self.match(TokenType.AUTOCREATE):
+                autocreate_token = self.consume(TokenType.ID, "Nom de catégorie attendu après 'autocreate'")
+                autocreate_category = autocreate_token.value
+
+            # --- Verbe de la requête : select (défaut) / insert / update / delete / reflexion ---
+            verb = "select"
+            if self.match(TokenType.DELETE):
+                verb = "delete"
+            elif self.check(TokenType.ID) and self.peek().value in ("insert", "update", "reflexion", "select"):
+                verb_token = self.advance()
+                verb = verb_token.value
+                if verb == "insert":
+                    cat_token = self.consume(TokenType.ID, "Nom de catégorie attendu après 'insert'")
+                    autocreate_category = cat_token.value  # 'insert' réutilise le mécanisme d'autocreate
+
+            self.consume(TokenType.LBRACE, "'{' attendu après le nom de la base dans __matches_db__")
+            motif = self.parse_db_motif()
+            self.consume(TokenType.RBRACE, "'}' attendu pour fermer le motif __matches_db__")
+
+            set_clause = None
+            if verb == "update":
+                set_kw = self.consume(TokenType.ID, "'set' attendu après le motif d'un update __matches_db__")
+                if set_kw.value != "set":
+                    self.error(set_kw, "'set { ... }' attendu après le motif d'un update __matches_db__")
+                set_clause = self.parse_set_clause()
+
+            expr = self.value_matche_variable if self.value_matche_variable != None else expr
+            return MatchesDbExpr(expr, db_name_token.value, motif, threshold=threshold_expr,
+                                  autocreate=autocreate_category, verb=verb, set_clause=set_clause)
+
         # opérateurs classiques
         while self.match(
                 TokenType.GT,
@@ -857,6 +1024,152 @@ class Parser:
             return GuardedPattern(base_pattern, guard_expr)
 
         return base_pattern
+
+    # ------------------------------------------------------------------
+    # __matches_db__ : motif { champ: pattern, ... }
+    # ------------------------------------------------------------------
+    def parse_db_motif(self):
+        pairs = []
+        while not self.check(TokenType.RBRACE) and not self.is_at_end():
+            field_expr = self.expression()
+            self.consume(TokenType.COLON, "':' attendu après le champ dans le motif __matches_db__")
+            if self.match(TokenType.ARROW):
+                ref_token = self.consume(TokenType.ID, "Nom de référence attendu après '=>' dans le motif")
+                pattern = DbRefPattern(ref_token.value)
+            else:
+                pattern = self.parse_match_pattern()
+            pairs.append((field_expr, pattern))
+            self.match(TokenType.COMMA)
+        return pairs
+
+    # ------------------------------------------------------------------
+    # update ... set { champ: nouvelle_valeur, ... }
+    # ------------------------------------------------------------------
+    def parse_set_clause(self):
+        self.consume(TokenType.LBRACE, "'{' attendu après 'set'")
+        pairs = []
+        while not self.check(TokenType.RBRACE) and not self.is_at_end():
+            key_expr = self.expression()
+            self.consume(TokenType.COLON, "':' attendu après la clé dans set")
+            value_expr = self.expression()
+            pairs.append((key_expr, value_expr))
+            self.match(TokenType.COMMA)
+        self.consume(TokenType.RBRACE, "'}' attendu pour fermer set")
+        return pairs
+
+    # ------------------------------------------------------------------
+    # neuron_loop NomDB { neuro_X{ enter{...} memory{...} elementor{...} out_X{...} } }
+    # ------------------------------------------------------------------
+    def parse_neuron_loop_decl(self):
+        token = self.previous()
+        name_token = self.consume(TokenType.ID, "Nom de la base attendu après 'neuron_loop'")
+        self.consume(TokenType.LBRACE, "'{' attendu après le nom de la base neuron_loop")
+        neurons = []
+        while not self.check(TokenType.RBRACE) and not self.is_at_end():
+            neurons.append(self.parse_neuron_block())
+            self.match(TokenType.COMMA)
+        self.consume(TokenType.RBRACE, "'}' attendu pour fermer neuron_loop")
+        return NeuronLoopDecl(name=name_token.value, neurons=neurons, line=token.line, column=token.column)
+
+    def parse_neuron_block(self):
+        name_token = self.consume(TokenType.ID, "Nom de neurone attendu (ex: neuro_000000000001)")
+        self.consume(TokenType.LBRACE, "'{' attendu après le nom du neurone")
+        enter, memory, elementor, out_blocks = {}, {}, {}, {}
+        while not self.check(TokenType.RBRACE) and not self.is_at_end():
+            section_token = self.consume(TokenType.ID, "Section attendue (enter/memory/elementor/out_X) dans le neurone")
+            section_name = section_token.value
+            if section_name == "enter":
+                enter, _ = self.parse_port_block()
+            elif section_name == "memory":
+                memory = self.parse_category_container()
+            elif section_name == "elementor":
+                elementor = self.parse_category_container()
+            elif section_name.startswith("out"):
+                ports, target = self.parse_port_block()
+                out_blocks[section_name] = {"ports": ports, "target": target}
+            else:
+                self.error(section_token, f"Section inconnue '{section_name}' dans un bloc neuron_loop")
+            self.match(TokenType.COMMA)
+        self.consume(TokenType.RBRACE, "'}' attendu pour fermer le neurone")
+        return NeuronBlock(name=name_token.value, enter=enter, memory=memory, elementor=elementor, out_blocks=out_blocks)
+
+    def parse_port_block(self):
+        """enter{ alpha: 1  beta: 2 ... } / out_6{ target: neuro_2  alpha: 6 ... }
+        — virgules optionnelles. 'target' déclare la synapse vers le neurone suivant."""
+        self.consume(TokenType.LBRACE, "'{' attendu pour ouvrir un bloc de ports")
+        ports = {}
+        target = None
+        while not self.check(TokenType.RBRACE) and not self.is_at_end():
+            key_token = self.consume(TokenType.ID, "Nom de catégorie ou 'target' attendu")
+            self.consume(TokenType.COLON, "':' attendu après le nom de catégorie")
+            if key_token.value == "target":
+                target_token = self.consume(TokenType.ID, "Nom de neurone cible attendu après 'target:'")
+                target = target_token.value
+            else:
+                ports[key_token.value] = self.parse_term()
+            self.match(TokenType.COMMA)
+        self.consume(TokenType.RBRACE, "'}' attendu pour fermer le bloc de ports")
+        return ports, target
+
+    def parse_category_container(self):
+        """memory{ alpha{...} beta{...} ... } ou elementor{ ... }"""
+        self.consume(TokenType.LBRACE, "'{' attendu pour ouvrir memory/elementor")
+        categories = {}
+        while not self.check(TokenType.RBRACE) and not self.is_at_end():
+            cat_token = self.consume(TokenType.ID, "Nom de catégorie attendu (alpha/beta/gamma/ohm/dzeta)")
+            categories[cat_token.value] = self.parse_category_block()
+            self.match(TokenType.COMMA)
+        self.consume(TokenType.RBRACE, "'}' attendu pour fermer memory/elementor")
+        return categories
+
+    def parse_category_block(self):
+        """alpha{ ref_el_1{ id: 1 => data: {...} } ref_el_2{...} }"""
+        self.consume(TokenType.LBRACE, "'{' attendu pour ouvrir une catégorie")
+        entries = {}
+        while not self.check(TokenType.RBRACE) and not self.is_at_end():
+            entry = self.parse_ref_entry()
+            entries[entry.name] = entry
+            self.match(TokenType.COMMA)
+        self.consume(TokenType.RBRACE, "'}' attendu pour fermer une catégorie")
+        return entries
+
+    def parse_ref_entry(self):
+        """ref_el_1{ id: 1 => data: { ... } }"""
+        name_token = self.consume(TokenType.ID, "Nom de référence attendu (ex: ref_el_1)")
+        self.consume(TokenType.LBRACE, "'{' attendu après le nom de la référence")
+
+        id_field = self.consume(TokenType.ID, "Champ 'id' attendu dans une référence")
+        if id_field.value != "id":
+            self.error(id_field, "Champ 'id' attendu en premier dans une référence")
+        self.consume(TokenType.COLON, "':' attendu après 'id'")
+        id_expr = self.parse_term()
+
+        self.consume(TokenType.ARROW, "'=>' attendu après l'id de la référence")
+        data_field = self.consume(TokenType.ID, "Champ 'data' attendu après '=>'")
+        if data_field.value != "data":
+            self.error(data_field, "Champ 'data' attendu après '=>'")
+        self.consume(TokenType.COLON, "':' attendu après 'data'")
+        data_pairs = self.parse_neuron_data_dict()
+
+        self.consume(TokenType.RBRACE, "'}' attendu pour fermer la référence")
+        return RefEntry(name=name_token.value, id_expr=id_expr, data_pairs=data_pairs)
+
+    def parse_neuron_data_dict(self):
+        """{ "date": [], "odeur": => beta_2, ... }"""
+        self.consume(TokenType.LBRACE, "'{' attendu pour ouvrir le bloc data")
+        pairs = []
+        while not self.check(TokenType.RBRACE) and not self.is_at_end():
+            key_expr = self.expression()
+            self.consume(TokenType.COLON, "':' attendu après la clé dans data")
+            if self.match(TokenType.ARROW):
+                ref_token = self.consume(TokenType.ID, "Nom de référence attendu après '=>'")
+                value_node = RefValue(ref_token.value)
+            else:
+                value_node = self.expression()
+            pairs.append((key_expr, value_node))
+            self.match(TokenType.COMMA)
+        self.consume(TokenType.RBRACE, "'}' attendu pour fermer le bloc data")
+        return pairs
 
     def parse_term(self):
         expr = self.parse_factor()
@@ -1004,10 +1317,12 @@ class Parser:
             #print("Debug : dans le parser LBRACE")
             #self.consume(TokenType.LBRACE, Fore.CYAN +"Attendu '{' pour ouvrir le dictionnaire"+ Style.RESET_ALL)
             return self.parse_dict()  # ça retourne DictLiteral
-        elif self.match(TokenType.NUMBER, TokenType.STR, TokenType.BOOLVAL):
+        elif self.match(TokenType.NUMBER, TokenType.STR, TokenType.BOOLVAL, TokenType.NULLVAL):
             _tok = self.previous()
             if _tok.type == TokenType.BOOLVAL:
                 return Literal(_tok.value == "true")
+            if _tok.type == TokenType.NULLVAL:
+                return Literal(None)
             return Literal(_tok.value)
         elif self.match(TokenType.FSTRING):
             raw_value = self.previous().value
@@ -1036,7 +1351,11 @@ class Parser:
                     token = self.previous()
 
                     # --- Nouvelle logique : fonction natif, globale ou instance ? ---
-                    if not isinstance(expr, ThisExpr):
+                    # (isinstance(expr, Variable) est requis : seul un identifiant nommé
+                    #  peut être un nom de module/classe connu. Le résultat d'un appel
+                    #  chaîné — x.foo().bar() — n'a pas de '.name' et doit directement
+                    #  emprunter le chemin générique MethodCall ci-dessous.)
+                    if not isinstance(expr, ThisExpr) and isinstance(expr, Variable):
                         if (expr.name in self.modules_loaded) or (expr.name in self.modules_alias):
                             # print("Debug : dans le parser Appel de fonction natif", expr.name)
                             # 🔸 Appel de fonction d’un module injecté
@@ -1070,11 +1389,11 @@ class Parser:
                                 )
                         else:
                             #print(f"1) ===================================== {expr}")
-                            return MethodCall(obj=expr, method=member_name, arguments=args, line=token.line, column=token.column)
+                            expr = MethodCall(obj=expr, method=member_name, arguments=args, line=token.line, column=token.column)
                     else:
-                        # 🔸 Méthode d’une instance variable
+                        # 🔸 Méthode d'une instance variable (ou résultat d'un appel chaîné)
                         #print(f"2) ===================================== {expr}")
-                        return MethodCall(obj=expr, method=member_name, arguments=args, line=token.line, column=token.column)
+                        expr = MethodCall(obj=expr, method=member_name, arguments=args, line=token.line, column=token.column)
                 else:  # accès champ
                     attr = AttributeAccess(expr, member_name)
                     # Si suivi de "=" → assignation d'attribut (this.x = val)
@@ -1117,7 +1436,7 @@ class Parser:
 
                 # print("ici 1 creation de FuncCall dans le parser")
                 # print(f"Debug : dans le parser dans parse_primary FuncCall name: {expr.name}  et args : {args}")
-                return FuncCall(name=expr.name, arguments=args)
+                expr = FuncCall(name=expr.name, arguments=args)
             else:
                 break
         return expr
@@ -1437,25 +1756,49 @@ class Parser:
             loop_kind = "circularWhile"
         elif self.match(TokenType.SLEEPING_LOOP):
             loop_kind = "sleepingLoop"
+        elif self.match(TokenType.SPIRAL):
+            loop_kind = "spiral"
+        elif self.match(TokenType.WAVE):
+            loop_kind = "wave"
+        elif self.match(TokenType.SECTORS):
+            loop_kind = "sectors"
         else:
             raise self.error(self.peek(), "Type de boucle attendu (loop, filterLoop, sortLoop, ...).")
 
-        # --- ( ... ) pattern/iterator ---
-        self.consume(TokenType.LPAREN, "Attendu '(' après le type de boucle")
-        # pattern principal | accepte identifiant simple ou parenthèse de destructuration
-        # Ici on implémente la forme simple : IDENT [in expr]
+        NEW_STYLE_KINDS = ("spiral", "wave", "sectors")
+
         var_name = None
         iterator = None
 
-        if self.check(TokenType.ID):
-            var_name = self.consume(TokenType.ID, "Attendu un identifiant").value
-            if self.match(TokenType.IN):
-                iterator = self.expression()
+        if loop_kind in NEW_STYLE_KINDS:
+            # Pas de parenthèses englobant "var in iterateur" pour ces 3
+            # boucles (syntaxe voulue : 'spiral cell in matrix { ... }') —
+            # seul le motif (x, y) destructuré utilise des parenthèses, et
+            # uniquement autour de lui-même.
+            if self.match(TokenType.LPAREN):
+                first_name = self.consume(TokenType.ID, "Attendu un identifiant dans (x, y)").value
+                self.consume(TokenType.COMMA, "Attendu ',' dans le motif (x, y)")
+                second_name = self.consume(TokenType.ID, "Attendu un second identifiant dans (x, y)").value
+                self.consume(TokenType.RPAREN, "Attendu ')' pour fermer (x, y)")
+                var_name = (first_name, second_name)
+            else:
+                var_name = self.consume(TokenType.ID, "Attendu un identifiant").value
+            self.consume(TokenType.IN, "Attendu 'in' dans la déclaration de boucle")
+            iterator = self.expression()
         else:
-            # possibilité d'étendre : (i, j in 0|10, ...) -> à implémenter si besoin
-            raise self.error(self.peek(), "Attendu un identifiant dans la déclaration de boucle.")
+            # --- ( ... ) pattern/iterator (forme historique) ---
+            self.consume(TokenType.LPAREN, "Attendu '(' après le type de boucle")
+            # pattern principal | accepte identifiant simple ou parenthèse de destructuration
+            # Ici on implémente la forme simple : IDENT [in expr]
+            if self.check(TokenType.ID):
+                var_name = self.consume(TokenType.ID, "Attendu un identifiant").value
+                if self.match(TokenType.IN):
+                    iterator = self.expression()
+            else:
+                # possibilité d'étendre : (i, j in 0|10, ...) -> à implémenter si besoin
+                raise self.error(self.peek(), "Attendu un identifiant dans la déclaration de boucle.")
 
-        self.consume(TokenType.RPAREN, "Attendu ')' après la déclaration de boucle")
+            self.consume(TokenType.RPAREN, "Attendu ')' après la déclaration de boucle")
 
         # --- Modificateur optionnel (après ':' par exemple) ---
         modifier_condition = None
@@ -1465,10 +1808,38 @@ class Parser:
         modifier_mode = None
         modifier_check = None
         modifier_where_permutloop = None
+        modifier_until_expr = None
+        bare_modifiers = None
+
+        if loop_kind in NEW_STYLE_KINDS:
+            # Modificateurs SANS ':' ni parenthèses, chaînables : from X Y,
+            # count N, rows N, cols N, amplitude N, by X, parallel (drapeau).
+            bare_modifiers = {}
+            while True:
+                if self.match(TokenType.FROM):
+                    origin = self.consume(TokenType.ID, "Attendu 'center' ou 'top_left' après 'from'").value
+                    direction = "clockwise"
+                    if self.check(TokenType.ID) and self.peek().value in ("clockwise", "counterclockwise"):
+                        direction = self.advance().value
+                    bare_modifiers["from"] = {"origin": origin, "direction": direction}
+                elif self.match(TokenType.COUNT):
+                    bare_modifiers["count"] = self.expression()
+                elif self.match(TokenType.ROWS):
+                    bare_modifiers["rows"] = self.expression()
+                elif self.match(TokenType.COLS):
+                    bare_modifiers["cols"] = self.expression()
+                elif self.match(TokenType.AMPLITUDE):
+                    bare_modifiers["amplitude"] = self.expression()
+                elif self.match(TokenType.PARALLEL):
+                    bare_modifiers["parallel"] = True
+                elif self.match(TokenType.BY):
+                    bare_modifiers["by"] = self.consume(TokenType.ID, "Attendu 'row' ou 'column' après 'by'").value
+                else:
+                    break
 
         # si tu veux autoriser le modificateur sans ':', enlève la check sur COLON
         # ==== debu de reciperaton des parametre : bloc ou instruction unique ==
-        if self.match(TokenType.COLON):
+        if loop_kind not in NEW_STYLE_KINDS and self.match(TokenType.COLON):
             # le prochain token doit être un mot-clé modificateur
             if self.match(TokenType.WHERE):
                 modifier_name = "where"
@@ -1572,9 +1943,11 @@ class Parser:
                 modifier_expr = self.expression()  # ex: i += 1 ou une assignation
                 self.consume(TokenType.RPAREN, "Attendu ')' après step")
                 if self.match(TokenType.UNTIL):
-                    modifier_name = "until"
+                    # Bug trouvé en testant : ça écrasait modifier_name/modifier_expr
+                    # ('step' disparaissait totalement de stmt.modifiers dès qu'un
+                    # 'until' suivait). On garde maintenant les deux séparément.
                     self.consume(TokenType.LPAREN, "Attendu '(' après until")
-                    modifier_expr = self.expression()
+                    modifier_until_expr = self.expression()
                     self.consume(TokenType.RPAREN, "Attendu ')' après until")
             elif self.match(TokenType.WAIT_UNTIL):
                 modifier_name = "waitUntil"
@@ -1602,7 +1975,7 @@ class Parser:
             condition=None,
             increment=None,
             iterator=iterator,
-            modifiers={modifier_name: modifier_expr} if modifier_name else {},
+            modifiers=bare_modifiers if bare_modifiers is not None else ({modifier_name: modifier_expr} if modifier_name else {}),
             filters=[],
             actions=[],
             step=None,
@@ -1618,6 +1991,8 @@ class Parser:
             stmt.modifiers["check"] = modifier_check
         if modifier_where_permutloop is not None:
             stmt.modifiers["where"] = modifier_where_permutloop
+        if modifier_until_expr is not None:
+            stmt.modifiers["until"] = modifier_until_expr
 
 
         return stmt

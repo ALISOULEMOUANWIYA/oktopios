@@ -1,4 +1,25 @@
-# 📘 Documentation Oktopios v0.0.1
+# 📘 Documentation Oktopios v0.1.0
+
+## Nouveautés v0.1.0 (résumé — exemples complets dans le README)
+
+- **`neuron_loop` / `__matches_db__`** : mémoire associative à 5 catégories,
+  verbes `select`/`insert`/`update`/`delete`/`reflexion`, seuil de
+  déclenchement, propagation synaptique, persistance disque
+- **Architecture multi-agents** : `heart{}` (isolé)/`core{}` (partagé),
+  `director`/`supervisor`/`agent`/`secretary` + `MultiAgent.run()`,
+  `Tentacle.create()`, `Scheduler`, `Monitor`
+- **`AdaptiveEngine`** : IAModule → analyse → décision → action → feedback
+  → apprentissage (mémoire `neuron_loop` dédiée)
+- **`IAModule`** : Ollama/DeepSeek/StarCoder (les deux derniers routent vers
+  Ollama local par défaut, sans clé), retry, fallback en cascade, streaming
+- **`DataImport`/`Recognize`** : connecteurs json/excel/sql/mysql, empreintes
+  faciale/vocale hors-ligne (extras `pip install oktopios[data|recognition|ia]`)
+- **Boucles** : `spiral`/`wave`/`sectors` (parcours géométriques distincts,
+  pas des variantes de `for`), `parallel` sur de vrais threads
+- **Langage** : littéral `null`, déclarations multiples (`var x, y : int = 1, 2`
+  et `var x = 1, y = 2`), valeurs par défaut selon le type
+- ⚠️ **6 nouveaux mots réservés** : `null`, `count`, `rows`, `cols`,
+  `amplitude`, `parallel` — voir `CHANGELOG.md` si du code existant les utilisait
 
 ## Variables
 

@@ -2,11 +2,11 @@
 test_lexer.py — Tests unitaires du lexeur Oktopios.
 """
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vm"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
-from lexer import tokenize
-from token_type import TokenType
+from vm.lexer import tokenize
+from vm.token_type import TokenType
 
 
 def tok(code):
@@ -125,17 +125,17 @@ def test_op_eqeq():
 
 def test_op_neq():
     tokens = tok("!=")
-    assert tokens[0].type == TokenType.NEQ
+    assert tokens[0].type == TokenType.NE
 
 
 def test_op_lte():
     tokens = tok("<=")
-    assert tokens[0].type == TokenType.LTE
+    assert tokens[0].type == TokenType.LE
 
 
 def test_op_gte():
     tokens = tok(">=")
-    assert tokens[0].type == TokenType.GTE
+    assert tokens[0].type == TokenType.GE
 
 
 def test_op_pluseq():
