@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git apply *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(awk '/^diff --git a\\\\/vm\\\\/interpreter.py/{f=1} f{print} /^diff --git a\\\\/vm\\\\/lexer.py/{if\\(f\\)exit}' \"C:/Users/mouan/Downloads/files/matches_db.patch\")",
+      "Bash(git stash *)",
+      "Bash(echo \"CHECK EXIT: $?\")",
+      "Bash(echo \"3WAY EXIT: $?\")",
+      "Bash(awk '/^diff --git a\\\\/vm\\\\/interpreter.py/{f=1} /^diff --git a\\\\/vm\\\\/lexer.py/{f=0} f' \"C:/Users/mouan/Downloads/files/matches_db.patch\")",
+      "Bash(echo \"APPLY EXIT: $?\")",
+      "Bash(git add *)",
+      "Read(//tmp/**)",
+      "Bash(cp \"C:/Users/mouan/Downloads/files/neuron_db.py\" vm/neuron_db.py)",
+      "Bash(mkdir -p .github/workflows)",
+      "Bash(cp \"C:/Users/mouan/Downloads/files/tests.yml\" .github/workflows/tests.yml)",
+      "Bash(cp \"C:/Users/mouan/Downloads/files/CHANGELOG.md\" CHANGELOG.md)",
+      "Bash(grep -rnE *)",
+      "Bash(grep -vE '={7,}')",
+      "Bash(grep -rn *)",
+      "Bash(python -m py_compile vm/interpreter.py vm/neuron_db.py vm/parser.py vm/lexer.py vm/native_funcs.py vm/environment.py vm/ast_nodes.py vm/runtime_instance.py vm/main.py)",
+      "Bash(python -m pytest tests/ -q)",
+      "Bash(python -m build --version)",
+      "Bash(python -m twine --version)",
+      "Bash(git commit -m '@ *)",
+      "Bash(git commit *)",
+      "Bash(git tag *)",
+      "Bash(git push *)",
+      "Bash(rm -f dist/oktopios-0.0.22*)",
+      "Bash(python -m build)",
+      "Bash(grep -nE '^\\\\[|repository|username' ~/.pypirc 2>&1 | sed -E 's/\\(username\\\\s*=\\\\s*\\).*/\\\\1<redacted>/')",
+      "Bash(python -m twine upload dist/oktopios-0.1.0*)"
+    ]
+  }
+}
