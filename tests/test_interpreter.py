@@ -291,3 +291,116 @@ try {
 }
 """
     assert out(code, capsys) == "Attrapé"
+
+
+# ── Namespace Json ─────────────────────────────────────────────────────────────
+# Note: le lexer Oktopios ne supporte pas \" dans les chaînes.
+# On utilise la stratégie map Oktopios → stringify → parse pour les tests.
+
+def test_json_is_valid_array(capsys):
+    """[1,2,3] est du JSON valide."""
+    code = 'inject Json\nprint(Json.isValid("[1,2,3]"))'
+    assert out(code, capsys) == "true"
+
+
+def test_json_is_valid_false(capsys):
+    """Une chaîne non-JSON retourne false."""
+    code = 'inject Json\nprint(Json.isValid("not json"))'
+    assert out(code, capsys) == "false"
+
+
+def test_json_stringify_is_valid(capsys):
+    """stringify d'un entier produit du JSON valide."""
+    code = 'inject Json\nprint(Json.isValid(Json.stringify(42)))'
+    assert out(code, capsys) == "true"
+
+
+def test_json_stringify_map_roundtrip(capsys):
+    """Un map Oktopios peut être stringify puis re-parsé, et Json.get fonctionne."""
+    code = """inject Json
+var m = {"score": 99, "ok": true}
+var s = Json.stringify(m)
+var parsed = Json.parse(s)
+print(Json.get(parsed, "score"))"""
+    assert out(code, capsys) == "99"
+
+
+def test_json_has_true(capsys):
+    """Json.has retourne true si la clé existe."""
+    code = """inject Json
+var m = {"x": 1}
+var s = Json.stringify(m)
+var obj = Json.parse(s)
+print(Json.has(obj, "x"))"""
+    assert out(code, capsys) == "true"
+
+
+def test_json_has_false(capsys):
+    """Json.has retourne false si la clé est absente."""
+    code = """inject Json
+var m = {"x": 1}
+var s = Json.stringify(m)
+var obj = Json.parse(s)
+print(Json.has(obj, "missing"))"""
+    assert out(code, capsys) == "false"
+
+
+def test_json_set(capsys):
+    """Json.set met à jour une valeur et retourne un nouvel objet."""
+    code = """inject Json
+var m = {"x": 1}
+var s = Json.stringify(m)
+var obj = Json.parse(s)
+var obj2 = Json.set(obj, "x", 99)
+print(Json.get(obj2, "x"))"""
+    assert out(code, capsys) == "99"
+
+
+def test_json_merge(capsys):
+    """Json.merge fusionne deux objets."""
+    code = """inject Json
+var a = {"x": 1}
+var b = {"y": 2}
+var sa = Json.stringify(a)
+var sb = Json.stringify(b)
+var merged = Json.merge(Json.parse(sa), Json.parse(sb))
+print(Json.has(merged, "x"))
+print(Json.has(merged, "y"))"""
+    lines = out(code, capsys).split("\n")
+    assert lines[0] == "true"
+    assert lines[1] == "true"
+
+
+def test_json_keys(capsys):
+    """Json.keys retourne les clés de premier niveau."""
+    code = """inject Json
+inject List
+var m = {"a": 1, "b": 2}
+var obj = Json.parse(Json.stringify(m))
+var k = Json.keys(obj)
+print(List.contains(k, "a"))
+print(List.contains(k, "b"))"""
+    lines = out(code, capsys).split("\n")
+    assert lines[0] == "true"
+    assert lines[1] == "true"
+
+
+def test_json_get_default(capsys):
+    """Json.get retourne null si la clé est absente sans default."""
+    code = """inject Json
+var m = {"z": 7}
+var obj = Json.parse(Json.stringify(m))
+print(Json.get(obj, "missing", "fallback"))"""
+    assert out(code, capsys) == "fallback"
+
+
+def test_json_file_roundtrip(capsys, tmp_path):
+    """Json.toFile puis Json.fromFile reconstituent le même objet."""
+    import os
+    filepath = str(tmp_path / "test.json")
+    code = f"""inject Json
+var m = {{"val": 42}}
+Json.toFile("{filepath}", m)
+var loaded = Json.fromFile("{filepath}")
+print(Json.get(loaded, "val"))"""
+    assert out(code, capsys) == "42"

@@ -1,5 +1,99 @@
 # Changelog
 
+## [0.1.7] — Namespace `Http` — requêtes HTTP natives
+
+### Ajouté
+
+**Namespace `Http` — 10 fonctions pour interagir avec des APIs web**
+- `Http.get(url, headers?, timeout?)` — requête GET ; retourne un map `{ status, ok, body, headers }`
+- `Http.post(url, body?, headers?, json?, timeout?)` — requête POST (corps texte ou JSON)
+- `Http.put(url, body?, headers?, json?, timeout?)` — requête PUT (corps texte ou JSON)
+- `Http.patch(url, body?, headers?, json?, timeout?)` — requête PATCH (corps texte ou JSON)
+- `Http.delete(url, headers?, timeout?)` — requête DELETE
+- `Http.status(response)` — code HTTP entier extrait de la réponse (ex. `200`, `404`)
+- `Http.ok(response)` — booléen, `true` si le statut est entre 200 et 299
+- `Http.body(response)` — corps de la réponse sous forme de chaîne brute
+- `Http.json(response)` — désérialise le corps comme JSON (retourne une valeur Oktopios)
+- `Http.headers(response)` — en-têtes de la réponse sous forme d'un map Oktopios
+
+Le namespace `Http` est complémentaire à `Json` : envoyez et recevez du JSON via HTTP
+en combinant les deux namespaces. Nécessite `pip install requests` (ou `pip install oktopios[ia]`).
+
+```okp
+var resp = Http.get("https://api.github.com/repos/ALISOULEMOUANWIYA/oktopios")
+print(Http.status(resp))                         // 200
+var data = Http.json(resp)
+print(Json.get(data, "stargazers_count", 0))     // nombre d'étoiles
+```
+
+---
+
+## [0.1.6] — Namespace `Json` — manipulation JSON en mémoire
+
+### Ajouté
+
+**Namespace `Json` — 12 fonctions de manipulation JSON**
+- `Json.parse(s)` — désérialise une chaîne JSON en valeur Oktopios (map, liste, primitif)
+- `Json.stringify(v)` — sérialise une valeur Oktopios en chaîne JSON compacte
+- `Json.pretty(v)` — sérialise avec indentation 2 espaces (pretty-print)
+- `Json.get(obj, path, default?)` — lit une valeur à un chemin pointé `"a.b.c"` dans un objet imbriqué
+- `Json.set(obj, path, val)` — retourne un nouvel objet avec la valeur modifiée au chemin donné
+- `Json.has(obj, path)` — vérifie si le chemin `"a.b.c"` existe dans l'objet
+- `Json.merge(a, b)` — merge profond de deux objets JSON (b écrase a en cas de conflit)
+- `Json.fromFile(path)` — charge un fichier JSON et le retourne comme valeur Oktopios
+- `Json.toFile(path, v, indent?)` — écrit une valeur Oktopios dans un fichier JSON (indentation 2 par défaut)
+- `Json.isValid(s)` — retourne `true` si la chaîne est du JSON valide, `false` sinon
+- `Json.keys(obj)` — retourne les clés de premier niveau d'un objet JSON
+
+Le namespace `Json` est complémentaire à `DataImport` : là où `DataImport` lit/écrit des
+fichiers entiers, `Json` manipule des valeurs JSON en mémoire (parse, chemin pointé, merge profond).
+
+---
+
+## [0.1.5] — Namespace `Date` — arithmétique et manipulation de dates
+
+### Ajouté
+
+**Namespace `Date` — 16 fonctions de manipulation de dates**
+- `Date.parse(s, fmt?)` — parse une chaîne de date avec le format donné (défaut `%Y-%m-%d`), retourne ISO `YYYY-MM-DD`
+- `Date.format(d, fmt?)` — formate une date vers un format arbitraire (défaut `DD/MM/YYYY`)
+- `Date.add(d, n, unit?)` — ajoute `n` unités à une date ; unités : `"days"`, `"weeks"`, `"months"`, `"years"`
+- `Date.diff(d1, d2, unit?)` — différence entre deux dates dans l'unité voulue (`"days"` par défaut, aussi `"weeks"`, `"hours"`, `"minutes"`, `"seconds"`)
+- `Date.compare(d1, d2)` — retourne `-1`, `0` ou `1` selon que `d1` est avant, égal ou après `d2`
+- `Date.isBefore(d1, d2)` — retourne `true` si `d1` est strictement avant `d2`
+- `Date.isAfter(d1, d2)` — retourne `true` si `d1` est strictement après `d2`
+- `Date.isEqual(d1, d2)` — retourne `true` si les deux dates sont identiques
+- `Date.weekday(d)` — retourne l'indice du jour de la semaine (`0` = Lundi, `6` = Dimanche)
+- `Date.weekdayName(d, lang?)` — retourne le nom du jour en anglais (par défaut) ou en français (`"fr"`)
+- `Date.isLeapYear(year)` — retourne `true` si l'année est bissextile
+- `Date.daysInMonth(year, month)` — retourne le nombre de jours dans un mois donné
+- `Date.toTimestamp(d)` — convertit une date en timestamp Unix (entier)
+- `Date.fromTimestamp(ts)` — convertit un timestamp Unix en date ISO `YYYY-MM-DD`
+
+Tous les formats courants sont acceptés en entrée : `YYYY-MM-DD`, `DD/MM/YYYY`, `MM/DD/YYYY`, `DD-MM-YYYY`, `YYYYMMDD`, etc.
+
+---
+
+## [0.1.4] — Namespace `Regex` — expressions régulières natives
+
+### Ajouté
+
+**Namespace `Regex` — 10 fonctions d'expressions régulières**
+- `Regex.test(pattern, s)` — test booléen : le pattern correspond-il quelque part dans `s` ?
+- `Regex.match(pattern, s)` — test booléen de correspondance complète (fullmatch)
+- `Regex.search(pattern, s)` — retourne la première correspondance (chaîne) ou `null`
+- `Regex.findAll(pattern, s)` — retourne toutes les correspondances sous forme de liste
+- `Regex.replace(pattern, repl, s)` — remplace toutes les correspondances par `repl`
+- `Regex.replaceN(pattern, repl, s, n)` — remplace exactement `n` occurrences (0 = toutes)
+- `Regex.split(pattern, s)` — découpe `s` selon le pattern, retourne une liste
+- `Regex.groups(pattern, s)` — liste ordonnée des groupes de capture de la première correspondance
+- `Regex.namedGroups(pattern, s)` — map des groupes nommés `(?P<nom>...)` de la première correspondance
+- `Regex.count(pattern, s)` — nombre total de correspondances dans `s`
+- `Regex.escape(s)` — échappe les caractères spéciaux pour usage sécurisé dans un pattern
+
+---
+
+
 ## [0.1.3] — Namespace `Map` & correction doublon IAModule
 
 ### Ajouté

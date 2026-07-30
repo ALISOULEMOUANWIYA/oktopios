@@ -20,6 +20,9 @@ except ImportError:
 import json as _json
 import sqlite3 as _sqlite3
 import difflib as _difflib
+import re as _re
+import datetime as _datetime
+import calendar as _calendar
 from . ast_nodes import OktopiosMap as _OktopiosMap, OktopiosList as _OktopiosList
 try:
     import openpyxl as _openpyxl
@@ -517,6 +520,365 @@ def _oktype(x) -> str:
     return type(x).__name__
 
 
+
+# ---------------------------------------------------------------------------
+# Regex helpers
+# ---------------------------------------------------------------------------
+
+def _re_groups(pattern, s):
+    """Return capture groups from the first match, or empty list."""
+    m = _re.search(pattern, s)
+    if m is None:
+        return _OktopiosList([])
+    return _OktopiosList(list(m.groups()))
+
+def _re_find_all(pattern, s):
+    """Return all non-overlapping matches as a list of strings."""
+    return _OktopiosList(_re.findall(pattern, s))
+
+def _re_named_groups(pattern, s):
+    """Return a map of named capture groups from the first match."""
+    m = _re.search(pattern, s)
+    if m is None:
+        return _OktopiosMap({})
+    return _OktopiosMap(m.groupdict())
+
+
+# ---------------------------------------------------------------------------
+# Date — arithmétique et manipulation de dates (namespace Date)
+# Les dates sont manipulées sous forme de chaînes ISO "YYYY-MM-DD".
+# Toutes les fonctions acceptent aussi des chaînes comme "DD/MM/YYYY".
+# ---------------------------------------------------------------------------
+
+_DATE_FORMATS = [
+    "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y",
+    "%d-%m-%Y", "%Y%m%d", "%Y/%m/%d",
+    "%d %B %Y", "%d %b %Y",
+]
+
+
+def _date_to_dt(d) -> _datetime.datetime:
+    """Convertit une chaîne de date en objet datetime (pour calculs internes)."""
+    if isinstance(d, _datetime.datetime):
+        return d
+    if isinstance(d, _datetime.date):
+        return _datetime.datetime(d.year, d.month, d.day)
+    s = str(d).strip()
+    for fmt in _DATE_FORMATS:
+        try:
+            return _datetime.datetime.strptime(s, fmt)
+        except ValueError:
+            pass
+    raise ValueError(
+        f"Date non reconnue : {d!r}. "
+        "Formats acceptés : YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY, ..."
+    )
+
+
+def _date_parse(s, fmt="%Y-%m-%d") -> str:
+    """Parse une date avec un format donné, retourne ISO YYYY-MM-DD."""
+    return _datetime.datetime.strptime(str(s).strip(), str(fmt)).strftime("%Y-%m-%d")
+
+
+def _date_format(d, fmt="%d/%m/%Y") -> str:
+    """Formate une date ISO vers un format arbitraire."""
+    return _date_to_dt(d).strftime(str(fmt))
+
+
+def _date_add(d, n, unit="days") -> str:
+    """Ajoute n unités (days/weeks/months/years) à une date, retourne ISO."""
+    dt = _date_to_dt(d)
+    n = int(n)
+    unit = str(unit).lower().rstrip("s")  # normalise "days" → "day"
+    if unit == "day":
+        result = dt + _datetime.timedelta(days=n)
+    elif unit == "week":
+        result = dt + _datetime.timedelta(weeks=n)
+    elif unit == "month":
+        month = dt.month + n
+        year = dt.year + (month - 1) // 12
+        month = (month - 1) % 12 + 1
+        day = min(dt.day, _calendar.monthrange(year, month)[1])
+        result = dt.replace(year=year, month=month, day=day)
+    elif unit == "year":
+        try:
+            result = dt.replace(year=dt.year + n)
+        except ValueError:  # 29 fév en année non-bissextile
+            result = dt.replace(year=dt.year + n, day=28)
+    else:
+        raise ValueError(
+            f"Unité inconnue : {unit!r}. Valeurs valides : 'days', 'weeks', 'months', 'years'."
+        )
+    return result.strftime("%Y-%m-%d")
+
+
+def _date_diff(d1, d2, unit="days") -> int:
+    """Retourne la différence entre deux dates dans l'unité demandée."""
+    dt1 = _date_to_dt(d1)
+    dt2 = _date_to_dt(d2)
+    delta = dt2 - dt1
+    unit = str(unit).lower().rstrip("s")
+    if unit == "day":
+        return delta.days
+    if unit == "week":
+        return delta.days // 7
+    if unit == "hour":
+        return int(delta.total_seconds() // 3600)
+    if unit == "minute":
+        return int(delta.total_seconds() // 60)
+    if unit == "second":
+        return int(delta.total_seconds())
+    return delta.days  # défaut : jours
+
+
+def _date_compare(d1, d2) -> int:
+    """Retourne -1, 0 ou 1 selon que d1 est avant, égal ou après d2."""
+    dt1 = _date_to_dt(d1)
+    dt2 = _date_to_dt(d2)
+    return 0 if dt1 == dt2 else (-1 if dt1 < dt2 else 1)
+
+
+def _date_is_leap_year(year: int) -> bool:
+    """Retourne true si l'année est bissextile."""
+    y = int(year)
+    return (y % 4 == 0 and y % 100 != 0) or (y % 400 == 0)
+
+
+def _date_days_in_month(year: int, month: int) -> int:
+    """Retourne le nombre de jours dans un mois donné."""
+    return _calendar.monthrange(int(year), int(month))[1]
+
+
+_WEEKDAY_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+_WEEKDAY_FR = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+
+
+def _date_weekday(d) -> int:
+    """Retourne le numéro du jour de la semaine (0=Lundi … 6=Dimanche)."""
+    return _date_to_dt(d).weekday()
+
+
+def _date_weekday_name(d, lang="en") -> str:
+    """Retourne le nom du jour en anglais (par défaut) ou en français ('fr')."""
+    wd = _date_to_dt(d).weekday()
+    if str(lang).lower() in ("fr", "french", "français"):
+        return _WEEKDAY_FR[wd]
+    return _WEEKDAY_EN[wd]
+
+
+def _date_to_timestamp(d) -> int:
+    """Convertit une date en timestamp Unix (entier)."""
+    return int(_date_to_dt(d).timestamp())
+
+
+def _date_from_timestamp(ts) -> str:
+    """Convertit un timestamp Unix en date ISO YYYY-MM-DD."""
+    return _datetime.datetime.fromtimestamp(float(ts)).strftime("%Y-%m-%d")
+
+
+# ---------------------------------------------------------------------------
+# Helpers Json
+# ---------------------------------------------------------------------------
+
+def _okp_to_python(v):
+    """Convertit récursivement une valeur Oktopios en type Python natif."""
+    if isinstance(v, _OktopiosMap):
+        return {str(k): _okp_to_python(val) for k, val in v.items()}
+    if isinstance(v, (_OktopiosList, list)):
+        return [_okp_to_python(x) for x in v]
+    return v
+
+
+def _python_to_okp(v):
+    """Convertit récursivement un type Python (dict/list) en valeur Oktopios."""
+    if isinstance(v, dict):
+        return _OktopiosMap({k: _python_to_okp(val) for k, val in v.items()})
+    if isinstance(v, list):
+        return _OktopiosList([_python_to_okp(x) for x in v])
+    return v
+
+
+def _json_parse(s: str):
+    """Désérialise une chaîne JSON en valeur Oktopios."""
+    return _python_to_okp(_json.loads(s))
+
+
+def _json_stringify(v, indent=None) -> str:
+    """Sérialise une valeur Oktopios en chaîne JSON."""
+    return _json.dumps(_okp_to_python(v), ensure_ascii=False,
+                       indent=int(indent) if indent is not None else None)
+
+
+def _json_is_valid(s: str) -> bool:
+    """Retourne True si la chaîne est du JSON valide."""
+    try:
+        _json.loads(s)
+        return True
+    except _json.JSONDecodeError:
+        return False
+
+
+def _json_path_get(obj, path: str, default=None):
+    """Lit une valeur à un chemin 'a.b.c' dans un objet imbriqué."""
+    keys = path.split(".")
+    cur = obj
+    for k in keys:
+        if isinstance(cur, (dict, _OktopiosMap)):
+            cur = dict(cur).get(k, None)
+            if cur is None:
+                return default
+        elif isinstance(cur, (_OktopiosList, list)):
+            try:
+                cur = list(cur)[int(k)]
+            except (ValueError, IndexError):
+                return default
+        else:
+            return default
+    return cur
+
+
+def _json_path_has(obj, path: str) -> bool:
+    """Retourne True si le chemin 'a.b.c' existe dans l'objet."""
+    sentinel = object()
+    return _json_path_get(obj, path, sentinel) is not sentinel
+
+
+def _json_path_set(obj, path: str, val):
+    """Retourne un nouvel objet avec la valeur modifiée au chemin 'a.b.c'."""
+    keys = path.split(".")
+    if not keys:
+        return val
+
+    def _set_recursive(cur, ks, v):
+        k = ks[0]
+        rest = ks[1:]
+        if isinstance(cur, (dict, _OktopiosMap)):
+            d = dict(cur)
+            d[k] = _set_recursive(d.get(k, _OktopiosMap({})), rest, v) if rest else v
+            return _OktopiosMap(d)
+        return val
+
+    return _set_recursive(obj, keys, val)
+
+
+def _json_deep_merge(a, b):
+    """Merge profond de deux objets Oktopios (b écrase a en cas de conflit)."""
+    if isinstance(a, (dict, _OktopiosMap)) and isinstance(b, (dict, _OktopiosMap)):
+        result = dict(a).copy()
+        for k, v in dict(b).items():
+            result[k] = _json_deep_merge(result[k], v) if k in result else v
+        return _OktopiosMap(result)
+    return b
+
+
+def _json_from_file(path: str):
+    """Charge un fichier JSON et retourne une valeur Oktopios."""
+    with open(path, "r", encoding="utf-8") as f:
+        return _python_to_okp(_json.load(f))
+
+
+def _json_to_file(path: str, v, indent: int = 2) -> None:
+    """Écrit une valeur Oktopios dans un fichier JSON."""
+    with open(path, "w", encoding="utf-8") as f:
+        _json.dump(_okp_to_python(v), f, ensure_ascii=False, indent=indent)
+
+
+# ---------------------------------------------------------------------------
+# Http — requêtes HTTP (GET / POST / PUT / DELETE / PATCH)
+# Nécessite le module `requests` (pip install requests ou oktopios[ia]).
+# Chaque méthode retourne un OktopiosMap :
+#   { "status": int, "ok": bool, "body": str, "headers": OktopiosMap }
+# ---------------------------------------------------------------------------
+
+def _http_require_requests():
+    if _requests is None:
+        raise RuntimeError(
+            "Le namespace Http nécessite le module 'requests'.\n"
+            "Installez-le avec : pip install requests\n"
+            "ou : pip install oktopios[ia]"
+        )
+
+def _http_response_to_okp(resp) -> _OktopiosMap:
+    """Convertit un objet requests.Response en OktopiosMap Oktopios."""
+    return _OktopiosMap({
+        "status":  resp.status_code,
+        "ok":      resp.ok,
+        "body":    resp.text,
+        "headers": _OktopiosMap(dict(resp.headers)),
+    })
+
+def _http_build_headers(headers) -> dict:
+    """Accepte un OktopiosMap ou un dict Python et retourne un dict Python."""
+    if headers is None:
+        return {}
+    if isinstance(headers, _OktopiosMap):
+        return dict(headers)
+    if isinstance(headers, dict):
+        return headers
+    return {}
+
+def _http_get(url: str, headers=None, timeout: int = 30) -> _OktopiosMap:
+    _http_require_requests()
+    resp = _requests.get(str(url), headers=_http_build_headers(headers), timeout=int(timeout))
+    return _http_response_to_okp(resp)
+
+def _http_post(url: str, body=None, headers=None, json_body=None, timeout: int = 30) -> _OktopiosMap:
+    _http_require_requests()
+    h = _http_build_headers(headers)
+    if json_body is not None:
+        resp = _requests.post(str(url), json=_okp_to_python(json_body), headers=h, timeout=int(timeout))
+    elif body is not None:
+        resp = _requests.post(str(url), data=str(body), headers=h, timeout=int(timeout))
+    else:
+        resp = _requests.post(str(url), headers=h, timeout=int(timeout))
+    return _http_response_to_okp(resp)
+
+def _http_put(url: str, body=None, headers=None, json_body=None, timeout: int = 30) -> _OktopiosMap:
+    _http_require_requests()
+    h = _http_build_headers(headers)
+    if json_body is not None:
+        resp = _requests.put(str(url), json=_okp_to_python(json_body), headers=h, timeout=int(timeout))
+    elif body is not None:
+        resp = _requests.put(str(url), data=str(body), headers=h, timeout=int(timeout))
+    else:
+        resp = _requests.put(str(url), headers=h, timeout=int(timeout))
+    return _http_response_to_okp(resp)
+
+def _http_patch(url: str, body=None, headers=None, json_body=None, timeout: int = 30) -> _OktopiosMap:
+    _http_require_requests()
+    h = _http_build_headers(headers)
+    if json_body is not None:
+        resp = _requests.patch(str(url), json=_okp_to_python(json_body), headers=h, timeout=int(timeout))
+    elif body is not None:
+        resp = _requests.patch(str(url), data=str(body), headers=h, timeout=int(timeout))
+    else:
+        resp = _requests.patch(str(url), headers=h, timeout=int(timeout))
+    return _http_response_to_okp(resp)
+
+def _http_delete(url: str, headers=None, timeout: int = 30) -> _OktopiosMap:
+    _http_require_requests()
+    resp = _requests.delete(str(url), headers=_http_build_headers(headers), timeout=int(timeout))
+    return _http_response_to_okp(resp)
+
+def _http_json(response) -> object:
+    """Parse le corps de la réponse comme JSON et retourne une valeur Oktopios."""
+    body = dict(response).get("body", "")
+    return _python_to_okp(_json.loads(str(body)))
+
+def _http_status(response) -> int:
+    return int(dict(response).get("status", 0))
+
+def _http_ok(response) -> bool:
+    return bool(dict(response).get("ok", False))
+
+def _http_body(response) -> str:
+    return str(dict(response).get("body", ""))
+
+def _http_headers(response) -> _OktopiosMap:
+    h = dict(response).get("headers", _OktopiosMap({}))
+    return h if isinstance(h, _OktopiosMap) else _OktopiosMap(dict(h))
+
+
 NativeFuncs = {
     "Math" : {
         # --- Constantes ---
@@ -840,4 +1202,107 @@ NativeFuncs = {
         "findKey":  lambda m, val: next((k for k, v in dict(m).items() if v == val), None),
         "invert":   lambda m: _OktopiosMap({v: k for k, v in dict(m).items()}),
     },
+    # -------------------------------------------------------------------
+    # Regex — expressions régulières
+    # -------------------------------------------------------------------
+    "Regex": {
+        # Test si le pattern correspond quelque part dans la chaîne (booléen)
+        "test":        lambda pattern, s: bool(_re.search(str(pattern), str(s))),
+        # Test si la chaîne entière correspond au pattern (booléen)
+        "match":       lambda pattern, s: bool(_re.fullmatch(str(pattern), str(s))),
+        # Retourne la première correspondance ou null
+        "search":      lambda pattern, s: (_re.search(str(pattern), str(s)).group(0)
+                           if _re.search(str(pattern), str(s)) else None),
+        # Retourne toutes les correspondances sous forme de liste
+        "findAll":     lambda pattern, s: _re_find_all(str(pattern), str(s)),
+        # Remplace les correspondances par repl
+        "replace":     lambda pattern, repl, s: _re.sub(str(pattern), str(repl), str(s)),
+        # Remplace exactement n occurrences (0 = toutes)
+        "replaceN":    lambda pattern, repl, s, n=0: _re.sub(str(pattern), str(repl), str(s), count=int(n)),
+        # Découpe la chaîne selon le pattern
+        "split":       lambda pattern, s: _OktopiosList(_re.split(str(pattern), str(s))),
+        # Groupes de capture de la première correspondance (liste ordonnée)
+        "groups":      lambda pattern, s: _re_groups(str(pattern), str(s)),
+        # Groupes nommés de la première correspondance (map)
+        "namedGroups": lambda pattern, s: _re_named_groups(str(pattern), str(s)),
+        # Compte le nombre de correspondances
+        "count":       lambda pattern, s: len(_re.findall(str(pattern), str(s))),
+        # Échappe les caractères spéciaux d'une chaîne pour usage dans un pattern
+        "escape":      lambda s: _re.escape(str(s)),
+    },
+    # -------------------------------------------------------------------
+    # Date — manipulation et arithmétique de dates
+    # Toutes les dates entrantes/sortantes sont des chaînes ISO "YYYY-MM-DD"
+    # (ou formats courants DD/MM/YYYY, MM/DD/YYYY, etc.).
+    # -------------------------------------------------------------------
+    "Date": {
+        # Parsing / formatage
+        "parse":         lambda s, fmt="%Y-%m-%d": _date_parse(s, fmt),
+        "format":        lambda d, fmt="%d/%m/%Y": _date_format(d, fmt),
+        # Arithmétique
+        "add":           lambda d, n, unit="days": _date_add(d, n, unit),
+        "diff":          lambda d1, d2, unit="days": _date_diff(d1, d2, unit),
+        # Comparaison  (-1 = avant, 0 = égal, 1 = après)
+        "compare":       lambda d1, d2: _date_compare(d1, d2),
+        "isBefore":      lambda d1, d2: _date_compare(d1, d2) < 0,
+        "isAfter":       lambda d1, d2: _date_compare(d1, d2) > 0,
+        "isEqual":       lambda d1, d2: _date_compare(d1, d2) == 0,
+        # Informations calendaires
+        "weekday":       lambda d: _date_weekday(d),
+        "weekdayName":   lambda d, lang="en": _date_weekday_name(d, lang),
+        "isLeapYear":    lambda year: _date_is_leap_year(int(year)),
+        "daysInMonth":   lambda year, month: _date_days_in_month(int(year), int(month)),
+        # Conversion timestamp Unix
+        "toTimestamp":   lambda d: _date_to_timestamp(d),
+        "fromTimestamp": lambda ts: _date_from_timestamp(ts),
+    },
+    # -------------------------------------------------------------------
+    # Json — manipulation de JSON en mémoire
+    # parse/stringify, accès par chemin pointé, merge profond
+    # -------------------------------------------------------------------
+    "Json": {
+        # Désérialise une chaîne JSON en valeur Oktopios (map/liste/primitif)
+        "parse":        lambda s: _json_parse(str(s)),
+        # Sérialise une valeur Oktopios en chaîne JSON compacte
+        "stringify":    lambda v, indent=None: _json_stringify(v, indent),
+        # Sérialise avec indentation (pretty-print)
+        "pretty":       lambda v: _json_stringify(v, 2),
+        # Lit la valeur à un chemin "a.b.c" dans un objet imbriqué
+        "get":          lambda obj, path, default=None: _json_path_get(obj, str(path), default),
+        # Retourne un nouvel objet avec la valeur modifiée au chemin donné
+        "set":          lambda obj, path, val: _json_path_set(obj, str(path), val),
+        # Vérifie si le chemin existe dans l'objet
+        "has":          lambda obj, path: _json_path_has(obj, str(path)),
+        # Merge profond de deux objets JSON (b écrase a en cas de conflit)
+        "merge":        lambda a, b: _json_deep_merge(a, b),
+        # Charge un fichier JSON et le retourne comme valeur Oktopios
+        "fromFile":     lambda path: _json_from_file(str(path)),
+        # Écrit une valeur Oktopios dans un fichier JSON (pretty par défaut)
+        "toFile":       lambda path, v, indent=2: _json_to_file(str(path), v, int(indent)),
+        # Valide qu'une chaîne est du JSON valide (booléen)
+        "isValid":      lambda s: _json_is_valid(str(s)),
+        # Retourne les clés de premier niveau d'un objet JSON
+        "keys":         lambda obj: _OktopiosList(list(dict(obj).keys())) if isinstance(obj, (dict, _OktopiosMap)) else _OktopiosList([]),
+    },
+
+    # -------------------------------------------------------------------
+    # Http — requêtes HTTP GET / POST / PUT / PATCH / DELETE
+    # Chaque méthode retourne un map : { status, ok, body, headers }
+    # Nécessite : pip install requests   (ou pip install oktopios[ia])
+    # -------------------------------------------------------------------
+    "Http": {
+        # Méthodes HTTP principales
+        "get":    lambda url, headers=None, timeout=30: _http_get(str(url), headers, timeout),
+        "post":   lambda url, body=None, headers=None, json=None, timeout=30: _http_post(str(url), body, headers, json, timeout),
+        "put":    lambda url, body=None, headers=None, json=None, timeout=30: _http_put(str(url), body, headers, json, timeout),
+        "patch":  lambda url, body=None, headers=None, json=None, timeout=30: _http_patch(str(url), body, headers, json, timeout),
+        "delete": lambda url, headers=None, timeout=30: _http_delete(str(url), headers, timeout),
+        # Accesseurs sur la réponse retournée
+        "status":  lambda response: _http_status(response),
+        "ok":      lambda response: _http_ok(response),
+        "body":    lambda response: _http_body(response),
+        "json":    lambda response: _http_json(response),
+        "headers": lambda response: _http_headers(response),
+    },
+
 }
