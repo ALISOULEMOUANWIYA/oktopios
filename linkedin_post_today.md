@@ -1,57 +1,49 @@
-# Post LinkedIn — Oktopios v0.1.5
+# LinkedIn Post — Oktopios v0.1.7 🐙
 
-## 🇫🇷 Français
-
-🐙 **Oktopios v0.1.5 est disponible !**
-
-Cette mise à jour apporte le namespace **`Date`** — 16 fonctions natives pour manipuler les dates directement dans le langage, sans importer de bibliothèque externe.
-
-```okp
-var naissance = "1990-07-15"
-var age_jours = Date.diff(naissance, Time.today(), "days")
-print("Vous avez vécu " + age_jours + " jours !")
-
-var prochaine_reunion = Date.add(Time.today(), 14, "days")
-print("Prochaine réunion : " + Date.format(prochaine_reunion, "%d %B %Y"))
-
-print(Date.weekdayName("2025-12-25", "fr"))  // → "Jeudi"
-print(Date.isLeapYear(2024))                  // → true
-print(Date.daysInMonth(2024, 2))              // → 29
-```
-
-Toutes les fonctions : `parse`, `format`, `add`, `diff`, `compare`, `isBefore`, `isAfter`, `isEqual`, `weekday`, `weekdayName`, `isLeapYear`, `daysInMonth`, `toTimestamp`, `fromTimestamp`.
-
-📦 `pip install oktopios==0.1.5`
-🔗 https://github.com/ALISOULEMOUANWIYA/oktopios
-🐍 https://pypi.org/project/oktopios
-
-#OpenSource #Oktopios #Python #ProgrammingLanguage #IA
+> **Image à joindre :** `oktopios_v0.1.7_linkedin.png`
 
 ---
 
-## 🇬🇧 English
+🐙 **Oktopios v0.1.7 — Namespace `Http` : le web dans votre langage !**
+**Oktopios v0.1.7 — `Http` namespace: the web inside your language!**
 
-🐙 **Oktopios v0.1.5 is out!**
+---
 
-This release brings the **`Date`** namespace — 16 built-in functions for date manipulation, no external library needed.
+🇫🇷 **Français**
+
+Aujourd'hui, **Oktopios** fait un grand pas vers le monde réel : le nouveau namespace **`Http`** permet de communiquer avec n'importe quelle API web directement depuis vos scripts `.okp` 🌐
+
+**10 fonctions natives :**
+▸ `Http.get(url)` — requête GET
+▸ `Http.post(url, json: data)` — requête POST avec corps JSON
+▸ `Http.put` / `Http.patch` / `Http.delete`
+▸ `Http.status(r)` — code HTTP (200, 404…)
+▸ `Http.ok(r)` — booléen de succès
+▸ `Http.body(r)` — corps brut
+▸ `Http.json(r)` — désérialise le JSON en valeur Oktopios
+▸ `Http.headers(r)` — en-têtes comme map
+
+Et ça s'enchaîne parfaitement avec le namespace **`Json`** (v0.1.6) !
 
 ```okp
-var birthday = "1990-07-15"
-var age_days = Date.diff(birthday, Time.today(), "days")
-print("You have lived " + age_days + " days!")
-
-var next_meeting = Date.add(Time.today(), 14, "days")
-print("Next meeting: " + Date.format(next_meeting, "%d %B %Y"))
-
-print(Date.weekdayName("2025-12-25"))  // → "Thursday"
-print(Date.isLeapYear(2024))            // → true
-print(Date.daysInMonth(2024, 2))        // → 29
+var r = Http.get("https://api.github.com/repos/ALISOULEMOUANWIYA/oktopios")
+print(Http.status(r))                          // 200
+var data = Http.json(r)
+print(Json.get(data, "stargazers_count", 0))   // ⭐
 ```
 
-Full function list: `parse`, `format`, `add`, `diff`, `compare`, `isBefore`, `isAfter`, `isEqual`, `weekday`, `weekdayName`, `isLeapYear`, `daysInMonth`, `toTimestamp`, `fromTimestamp`.
+Tous les **111 tests passent** ✅ — installez avec `pip install oktopios[ia]`
 
-📦 `pip install oktopios==0.1.5`
-🔗 https://github.com/ALISOULEMOUANWIYA/oktopios
-🐍 https://pypi.org/project/oktopios
+---
 
-#OpenSource #Oktopios #Python #ProgrammingLanguage #IA
+🇬🇧 **English**
+
+**Oktopios v0.1.7** is out with the brand-new `Http` namespace — make HTTP requests natively from `.okp` scripts! GET, POST, PUT, PATCH, DELETE — responses come back as Oktopios maps with `status`, `ok`, `body`, `headers`. Pair it with the `Json` namespace and you have a full web-client built into the language.
+
+👉 `pip install oktopios[ia]`
+👉 GitHub: https://github.com/ALISOULEMOUANWIYA/oktopios
+👉 PyPI: https://pypi.org/project/oktopios
+
+---
+
+#OpenSource #Oktopios #Python #ProgrammingLanguage #IA #HTTP #WebDev #BioInspired

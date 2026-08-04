@@ -1305,4 +1305,38 @@ NativeFuncs = {
         "headers": lambda response: _http_headers(response),
     },
 
+    # ------------------------------------------------------------------
+    # Namespace Set — ensemble mathématique (valeurs uniques, non ordonnées)
+    # Représentation interne : OktopiosMap { élément -> True }
+    # Toutes les fonctions sont pures (immutables) — elles retournent
+    # un nouveau Set sans modifier l'original.
+    # ------------------------------------------------------------------
+    "Set": {
+        # Création
+        "create":     lambda lst=None: _OktopiosMap({k: True for k in (lst if lst is not None else [])}),
+        "fromList":   lambda lst: _OktopiosMap({k: True for k in (lst if lst is not None else [])}),
+        # Lecture
+        "has":        lambda s, x: x in s,
+        "size":       lambda s: len(s),
+        "isEmpty":    lambda s: len(s) == 0,
+        "toList":     lambda s: _OktopiosList(list(s.keys())),
+        # Modification (retourne un nouveau Set)
+        "add":        lambda s, x: _OktopiosMap({**s, x: True}),
+        "remove":     lambda s, x: _OktopiosMap({k: True for k in s if k != x}),
+        "clear":      lambda s: _OktopiosMap({}),
+        # Opérations ensemblistes
+        "union":      lambda a, b: _OktopiosMap({**{k: True for k in a}, **{k: True for k in b}}),
+        "intersect":  lambda a, b: _OktopiosMap({k: True for k in a if k in b}),
+        "diff":       lambda a, b: _OktopiosMap({k: True for k in a if k not in b}),
+        "symDiff":    lambda a, b: _OktopiosMap({
+            **{k: True for k in a if k not in b},
+            **{k: True for k in b if k not in a}
+        }),
+        # Prédicats relationnels
+        "isSubset":   lambda a, b: all(k in b for k in a),
+        "isSuperset": lambda a, b: all(k in a for k in b),
+        "isDisjoint": lambda a, b: not any(k in b for k in a),
+        "equals":     lambda a, b: set(a.keys()) == set(b.keys()),
+    },
+
 }

@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.1.8] — Namespace `Set` — ensembles mathématiques natifs
+
+### Ajouté
+
+**Namespace `Set` — 15 fonctions pour les ensembles (valeurs uniques, non ordonnées)**
+
+Représentation interne : `OktopiosMap { élément -> true }` — toutes les opérations
+sont **pures** (immutables) et retournent un nouveau Set sans modifier l'original.
+
+- `Set.create(liste?)` — crée un ensemble vide ou depuis une liste (les doublons sont ignorés)
+- `Set.fromList(liste)` — alias explicite de `create` pour la conversion depuis une liste
+- `Set.has(s, x)` — retourne `true` si `x` est dans l'ensemble (`O(1)`)
+- `Set.size(s)` — nombre d'éléments dans l'ensemble
+- `Set.isEmpty(s)` — retourne `true` si l'ensemble est vide
+- `Set.toList(s)` — convertit le Set en liste Oktopios
+- `Set.add(s, x)` — retourne un nouveau Set avec `x` ajouté
+- `Set.remove(s, x)` — retourne un nouveau Set sans `x`
+- `Set.clear(s)` — retourne un Set vide
+- `Set.union(a, b)` — union : tous les éléments de `a` ou `b`
+- `Set.intersect(a, b)` — intersection : éléments présents dans `a` **et** `b`
+- `Set.diff(a, b)` — différence : éléments de `a` qui ne sont pas dans `b`
+- `Set.symDiff(a, b)` — différence symétrique : éléments exclusifs à `a` ou `b`
+- `Set.isSubset(a, b)` — retourne `true` si `a ⊆ b`
+- `Set.isSuperset(a, b)` — retourne `true` si `a ⊇ b`
+- `Set.isDisjoint(a, b)` — retourne `true` si `a` et `b` n'ont aucun élément en commun
+- `Set.equals(a, b)` — retourne `true` si les deux ensembles contiennent les mêmes éléments
+
+```okp
+var a = Set.create([1, 2, 3, 2, 1])   // {1, 2, 3} — doublons éliminés
+var b = Set.create([2, 3, 4])
+print(Set.size(a))                     // 3
+print(Set.has(a, 2))                   // true
+print(Set.union(a, b))                 // {1, 2, 3, 4}
+print(Set.intersect(a, b))             // {2, 3}
+print(Set.diff(a, b))                  // {1}
+print(Set.symDiff(a, b))               // {1, 4}
+print(Set.isSubset(Set.create([2, 3]), a))  // true
+var c = Set.add(a, 99)
+print(Set.toList(c))                   // [1, 2, 3, 99]
+```
+
+---
+
 ## [0.1.7] — Namespace `Http` — requêtes HTTP natives
 
 ### Ajouté
