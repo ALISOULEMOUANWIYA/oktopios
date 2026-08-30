@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.8] — Images visibles sur la page PyPI
+
+### Corrigé
+
+- **Les images du README ne s'affichaient pas sur PyPI.** PyPI ne résout pas
+  les chemins d'images relatifs (`docs/media/...`) ; seules les URL absolues
+  fonctionnent. Tous les `<img src>` du README pointent désormais vers les
+  fichiers bruts sur GitHub
+  (`https://raw.githubusercontent.com/ALISOULEMOUANWIYA/oktopios/main/...`),
+  ce qui les rend visibles sur PyPI comme sur GitHub.
+
+---
+
 ## [0.2.7] — Correction de `okp --native`
 
 ### Corrigé
