@@ -49,13 +49,16 @@ okp --version
 **Installer Termux** depuis [F-Droid](https://f-droid.org/packages/com.termux/)
 *(pas depuis le Play Store — version obsolète)*
 
-Puis dans Termux :
+Depuis la 0.2.6, le cœur d'Oktopios est pur Python : le plus simple est pip.
+
+Dans Termux :
 ```bash
-bash installers/android-termux/termux-install.sh
+pkg install python -y
+pip install oktopios
 okp --version
 ```
 
-Ou en une seule commande :
+Alternative — installeur automatique (gère Python et les replis pip) :
 ```bash
 pkg install python git -y && \
 git clone https://github.com/ALISOULEMOUANWIYA/oktopios && \
@@ -124,10 +127,10 @@ rm -rf ~/.local/lib/oktopios ~/.local/bin/okp
 
 ### Termux
 ```bash
-rm -rf ~/.oktopios $PREFIX/bin/okp
+pip uninstall oktopios
 ```
 
 ### iSH
 ```sh
-rm -rf ~/.oktopios /usr/local/bin/okp
+pip uninstall oktopios
 ```
