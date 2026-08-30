@@ -112,6 +112,19 @@ okp --repl
 
 ---
 
+## ⬆️ Mise à jour
+
+Déjà installé ? Passez à la dernière version publiée sur PyPI :
+```bash
+pip install --upgrade oktopios
+```
+Sur Termux / iSH (Alpine récent, PEP 668) si `pip` refuse :
+```bash
+pip install --upgrade --break-system-packages oktopios
+```
+
+---
+
 ## 🔄 Désinstallation
 
 ### Windows

@@ -85,6 +85,22 @@ okp --version
 okp 'print("Bonjour Oktopios")'
 ```
 
+### Mise à jour 🐙 
+
+Déjà installé ? Passez à la dernière version avec :
+
+```bash
+pip install --upgrade oktopios
+```
+
+Sur Termux ou iSH (Alpine récent, PEP 668), si `pip` refuse :
+
+```bash
+pip install --upgrade --break-system-packages oktopios
+```
+
+Vérifiez ensuite : `okp --version`.
+
 ### Depuis les sources 🐙 
 
 ```bash

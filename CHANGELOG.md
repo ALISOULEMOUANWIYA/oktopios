@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.7] — Correction de `okp --native`
+
+### Corrigé
+
+- **`okp --native` (et `--native-markdown`) affichaient un tableau / document
+  vide.** `NativeFuncs` stocke les fonctions natives directement
+  (`{module: {nom: lambda|constante}}`) et non des dictionnaires de métadonnées ;
+  la boucle n'ajoutait une ligne que `if isinstance(meta, dict)`, condition
+  jamais vraie. Les deux commandes listent désormais chaque `module.nom` avec
+  son type (`fonction` / `constante`) — **390 entrées dans 31 modules**.
+- `cmd_native_markdown` : correction du repli `else {}` (dict vide) →
+  `NativeFuncs`, qui vidait la génération du Markdown.
+
+### Mise à jour
+
+Déjà installé ? Mettez à jour avec :
+
+```bash
+pip install --upgrade oktopios
+```
+
+---
+
 ## [0.2.6] — Compatibilité élargie (Python 3.8+, Termux/Android)
 
 ### Changé
