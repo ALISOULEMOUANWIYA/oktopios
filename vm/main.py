@@ -272,17 +272,27 @@ def cmd_types_json(args):
 def cmd_native():
     funcs = NativeFuncs.get_all() if hasattr(NativeFuncs, "get_all") else NativeFuncs
     table = []
+    modules = 0
     if isinstance(funcs, dict):
-        for module, methods in funcs.items():
-            if isinstance(methods, dict):
-                for name, meta in methods.items():
-                    if isinstance(meta, dict):
-                        table.append([f"{module}.{name}", meta.get("args",""), meta.get("description",""), meta.get("example","")])
+        for module, methods in sorted(funcs.items()):
+            if not isinstance(methods, dict):
+                continue
+            modules += 1
+            for name, val in methods.items():
+                fq = f"{module}.{name}"
+                if isinstance(val, dict):
+                    # Ancien format avec métadonnées {args, description, example}
+                    table.append([fq, "fonction", val.get("description", "")])
+                elif callable(val):
+                    table.append([fq, "fonction", ""])
+                else:
+                    table.append([fq, "constante", repr(val)])
     print(Fore.LIGHTGREEN_EX + tabulate(
         table,
-        headers=["Fonction", "Arguments", "Description", "Exemple"],
+        headers=["Fonction", "Type", "Détail"],
         tablefmt="fancy_grid"
     ) + Style.RESET_ALL)
+    print(Style.DIM + f"{len(table)} entrées natives dans {modules} modules." + Style.RESET_ALL)
 
 
 def cmd_native_json():
@@ -298,20 +308,23 @@ def cmd_native_json():
 
 
 def cmd_native_markdown():
-    funcs = NativeFuncs.get_all() if hasattr(NativeFuncs, "get_all") else {}
+    funcs = NativeFuncs.get_all() if hasattr(NativeFuncs, "get_all") else NativeFuncs
     output_path = "native_functions.md"
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("# 📘 Fonctions Natives Oktopios\n\n")
         if isinstance(funcs, dict):
-            for module, methods in funcs.items():
-                if isinstance(methods, dict):
-                    f.write(f"## Module `{module}`\n\n")
-                    for name, meta in methods.items():
-                        if isinstance(meta, dict):
-                            f.write(f"### `{module}.{name}`\n")
-                            f.write(f"- **Arguments** : `{meta.get('args','')}`\n")
-                            f.write(f"- **Description** : {meta.get('description','')}\n")
-                            f.write(f"- **Exemple** : `{meta.get('example','')}`\n\n")
+            for module, methods in sorted(funcs.items()):
+                if not isinstance(methods, dict):
+                    continue
+                f.write(f"## Module `{module}`\n\n")
+                for name, val in methods.items():
+                    if isinstance(val, dict):
+                        f.write(f"- `{module}.{name}` — {val.get('description','')}\n")
+                    elif callable(val):
+                        f.write(f"- `{module}.{name}()`\n")
+                    else:
+                        f.write(f"- `{module}.{name}` = `{val!r}` (constante)\n")
+                f.write("\n")
     print(Fore.LIGHTCYAN_EX + f"✅ Fichier `{output_path}` généré." + Style.RESET_ALL)
 
 
