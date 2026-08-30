@@ -598,6 +598,34 @@ Oktopios est encore expérimental. Certaines fonctionnalités sont stables, d'au
 - puissance du runtime objet et fonctionnel ;
 - architecture pieuvrique pour l'orchestration, les matrices et l'adaptation IA.
 
+## Galerie des versions 🐙
+
+Chaque version enrichit la bibliothèque standard d'Oktopios avec un nouveau
+namespace natif (sans dépendance lourde). Aperçu visuel, de la plus récente à
+la plus ancienne :
+
+<p align="center">
+  <img src="oktopios_linkedin_post.png" alt="Oktopios" width="620">
+</p>
+
+| Version | Apport | Aperçu |
+|:--|:--|:--:|
+| **0.2.5** | Namespace `Fmt` — formatage humain de valeurs (nombres, %, monnaie, octets, durées…) | <img src="oktopios_v0.2.5_linkedin.png" alt="Oktopios 0.2.5 — Fmt" width="380"> |
+| **0.2.4** | Namespace `Table` — rendu de tableaux formatés en texte | <img src="oktopios_v0.2.4_linkedin.png" alt="Oktopios 0.2.4 — Table" width="380"> |
+| **0.2.3** | Namespace `Csv` — lecture et écriture CSV native | <img src="oktopios_v0.2.3_linkedin.png" alt="Oktopios 0.2.3 — Csv" width="380"> |
+| **0.2.2** | Namespace `Path` — manipulation de chemins de fichiers | <img src="oktopios_v0.2.2_linkedin.png" alt="Oktopios 0.2.2 — Path" width="380"> |
+| **0.2.1** | Namespace `Stats` — statistiques descriptives natives | <img src="oktopios_v0.2.1_linkedin.png" alt="Oktopios 0.2.1 — Stats" width="380"> |
+| **0.2.0** | Namespace `Hash` — hachage cryptographique & encodage Base64 | <img src="oktopios_v0.2.0_linkedin.png" alt="Oktopios 0.2.0 — Hash" width="380"> |
+| **0.1.9** | Namespaces `Queue` & `Stack` — structures de données natives | <img src="oktopios_v0.1.9_linkedin.png" alt="Oktopios 0.1.9 — Queue & Stack" width="380"> |
+| **0.1.8** | Namespace `Set` — ensembles mathématiques natifs | <img src="oktopios_v0.1.8_linkedin.png" alt="Oktopios 0.1.8 — Set" width="380"> |
+| **0.1.7** | Namespace `Http` — requêtes HTTP natives | <img src="oktopios_v0.1.7_linkedin.png" alt="Oktopios 0.1.7 — Http" width="380"> |
+| **0.1.6** | Namespace `Json` — manipulation JSON en mémoire | <img src="oktopios_v0.1.6_linkedin.png" alt="Oktopios 0.1.6 — Json" width="380"> |
+| **0.1.5** | Namespace `Date` — arithmétique et manipulation de dates | <img src="oktopios_v0.1.5_linkedin.png" alt="Oktopios 0.1.5 — Date" width="380"> |
+| **0.1.4** | Namespace `Regex` — expressions régulières natives | <img src="oktopios_v0.1.4_linkedin.png" alt="Oktopios 0.1.4 — Regex" width="380"> |
+| **0.1.3** | Namespace `Map` & correction doublon IAModule | <img src="oktopios_v0.1.3_linkedin.png" alt="Oktopios 0.1.3 — Map" width="380"> |
+| **0.1.2** | Namespace `List` fonctionnel & types enrichis | <img src="oktopios_v0.1.2_linkedin.png" alt="Oktopios 0.1.2 — List" width="380"> |
+| **0.1.1** | Bibliothèque standard enrichie & corrections de ressources | <img src="oktopios_v0.1.1_linkedin.png" alt="Oktopios 0.1.1" width="380"> |
+
 ## Licence
 
 MIT © Mouanwiya Ali Soule
