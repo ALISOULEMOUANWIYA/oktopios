@@ -21,9 +21,10 @@ venv/
 env/
 .env
 
-# Éditeurs
+# Éditeurs / outils
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
