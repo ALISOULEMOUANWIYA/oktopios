@@ -68,20 +68,32 @@ cd oktopios && bash installers/android-termux/termux-install.sh
 
 **Installer iSH Shell** depuis l'[App Store](https://apps.apple.com/app/ish-shell/id1436902243) (gratuit)
 
-iSH émule un terminal Linux Alpine sur iOS.
+iSH émule un terminal Linux Alpine sur iOS. Depuis la 0.2.6, le cœur d'Oktopios
+est pur Python : l'installation la plus simple passe directement par pip.
 
 Puis dans iSH :
 ```sh
-# Mise à jour Alpine
-apk update && apk add git python3 py3-pip
+# Mise à jour Alpine + Python
+apk update && apk add python3 py3-pip
 
-# Cloner et installer
-git clone https://github.com/ALISOULEMOUANWIYA/oktopios
-cd oktopios
-sh installers/ios-ish/ios-install.sh
+# Installer Oktopios (pur Python, aucune compilation)
+pip install oktopios
 
 # Tester
 okp --version
+```
+
+> Alpine récent applique PEP 668 : si `pip` affiche
+> « externally-managed-environment », ajoutez `--break-system-packages` :
+> `pip install --break-system-packages oktopios`
+
+Alternative — installeur automatique (gère Python, PEP 668 et le repli pour les
+très anciens Python) :
+```sh
+apk add git
+git clone https://github.com/ALISOULEMOUANWIYA/oktopios
+cd oktopios
+sh installers/ios-ish/ios-install.sh
 ```
 
 ---

@@ -138,11 +138,30 @@ pip install --ignore-requires-python oktopios
 
 ### iPhone ou iPad avec iSH 🐙
 
+[iSH Shell](https://apps.apple.com/app/ish-shell/id1436902243) (gratuit sur
+l'App Store) émule Alpine Linux sur iOS. Comme le cœur d'Oktopios est pur
+Python (aucune compilation), l'installation est directe :
+
 ```sh
 apk update
 apk add python3 py3-pip
 pip install oktopios
 okp --version
+```
+
+Sur les versions récentes d'Alpine, `pip` applique PEP 668 et refuse
+d'installer dans le système. Si vous voyez « externally-managed-environment »,
+ajoutez `--break-system-packages` :
+
+```sh
+pip install --break-system-packages oktopios
+```
+
+Ou lancez l'installeur automatique fourni (gère Python, PEP 668 et le repli
+pour les très anciens Python) :
+
+```sh
+sh installers/ios-ish/ios-install.sh
 ```
 
 ## Utilisation rapide 🐙

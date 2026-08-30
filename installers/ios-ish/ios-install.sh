@@ -1,90 +1,81 @@
 #!/bin/sh
 # ================================================
-#  Oktopios v0.0.1 - Installeur iPhone/iOS (iSH)
-#  Usage: sh ios-install.sh
+#  Oktopios - Installeur iPhone / iPad (iSH Shell)
+#  Usage : sh ios-install.sh
 #
-#  Prérequis : Application iSH Shell (App Store gratuit)
+#  Prérequis : l'app iSH Shell (App Store, gratuit)
 #  https://apps.apple.com/app/ish-shell/id1436902243
 #
-#  iSH émule Linux Alpine sur iPhone/iPad
+#  iSH émule Alpine Linux (x86) sur iOS. Depuis la 0.2.6, le cœur
+#  d'Oktopios est 100 % pur Python : aucune compilation, donc pas
+#  besoin de gcc/musl-dev — l'install se fait via pip directement.
 # ================================================
 
-OKP_VERSION="0.0.1"
-INSTALL_DIR="$HOME/.oktopios"
-BIN_DIR="/usr/local/bin"
+set -u
 
-echo ""
-echo "  ============================================"
-echo "   🐙  Oktopios v${OKP_VERSION} - iPhone/iPad (iSH)"
-echo "  ============================================"
-echo ""
+GREEN="$(printf '\033[32m')"; CYAN="$(printf '\033[36m')"
+YELLOW="$(printf '\033[33m')"; RED="$(printf '\033[31m')"
+RESET="$(printf '\033[0m')"; BOLD="$(printf '\033[1m')"
 
-# 1. Mise à jour Alpine
-echo "  [1/5] Mise a jour du systeme..."
-apk update -q 2>/dev/null || true
-echo "  OK"
+ok()   { printf '  %s✓%s  %s\n'  "$GREEN"  "$RESET" "$1"; }
+info() { printf '  %s→%s  %s\n'  "$YELLOW" "$RESET" "$1"; }
+fail() { printf '  %s✗  ERREUR: %s%s\n' "$RED" "$1" "$RESET"; exit 1; }
 
-# 2. Installer Python via Alpine
-echo "  [2/5] Installation de Python3..."
+printf '\n%s  ════════════════════════════════════════════%s\n' "$CYAN" "$RESET"
+printf '%s   🐙  Oktopios - iPhone / iPad (iSH)%s\n'             "$CYAN" "$RESET"
+printf '%s  ════════════════════════════════════════════%s\n\n' "$CYAN" "$RESET"
+
+# 1. Mise à jour d'Alpine
+printf '  %s[1/3]%s Mise à jour d'\''Alpine...\n' "$BOLD" "$RESET"
+apk update -q 2>/dev/null || info "apk update ignoré (pas de réseau ?)"
+ok "Système à jour"
+
+# 2. Installer Python + pip
+printf '\n  %s[2/3]%s Installation de Python...\n' "$BOLD" "$RESET"
 if ! command -v python3 >/dev/null 2>&1; then
-    apk add python3 py3-pip -q
+    apk add python3 py3-pip -q || fail "Impossible d'installer python3 (apk add python3 py3-pip)"
 fi
-echo "  OK - Python $(python3 --version 2>&1 | awk '{print $2}')"
+command -v python3 >/dev/null 2>&1 || fail "python3 introuvable après installation"
+ok "Python $(python3 --version 2>&1 | awk '{print $2}')"
 
-# 3. Installer git
-echo "  [3/5] Installation de git..."
-if ! command -v git >/dev/null 2>&1; then
-    apk add git -q
-fi
-echo "  OK"
+# 3. Installer Oktopios via pip
+printf '\n  %s[3/3]%s Installation d'\''Oktopios...\n' "$BOLD" "$RESET"
 
-# 4. Installer Oktopios
-echo "  [4/5] Installation d'Oktopios..."
-mkdir -p "$INSTALL_DIR"
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-
-if [ -f "$PROJECT_DIR/vm/main.py" ]; then
-    cp -r "$PROJECT_DIR"/. "$INSTALL_DIR/"
-    echo "  OK - Fichiers copies"
+# Alpine récent applique PEP 668 (environnement « externally-managed ») :
+# pip refuse d'installer dans le système sans --break-system-packages.
+# On tente d'abord l'install simple, puis les replis nécessaires.
+if python3 -m pip install --upgrade oktopios >/dev/null 2>&1; then
+    ok "Oktopios installé"
+elif python3 -m pip install --upgrade --break-system-packages oktopios >/dev/null 2>&1; then
+    ok "Oktopios installé (--break-system-packages)"
+elif python3 -m pip install --upgrade --break-system-packages --ignore-requires-python oktopios >/dev/null 2>&1; then
+    ok "Oktopios installé (Python ancien, contrainte de version ignorée)"
 else
-    echo "  -> Telechargement depuis GitHub..."
-    git clone --depth 1 https://github.com/ALISOULEMOUANWIYA/oktopios "$INSTALL_DIR" 2>/dev/null || \
-    pip3 install oktopios --quiet
-    echo "  OK"
+    fail "Échec de l'installation via pip. Essayez manuellement : python3 -m pip install --break-system-packages oktopios"
 fi
 
-# Dépendances minimales (Alpine)
-pip3 install colorama tabulate --quiet 2>/dev/null || true
-
-# 5. Créer le lanceur
-echo "  [5/5] Creation du lanceur okp..."
-cat > "/usr/local/bin/okp" << WRAPPER
-#!/bin/sh
-python3 "$INSTALL_DIR/vm/main.py" "\$@"
-WRAPPER
-chmod +x "/usr/local/bin/okp"
-echo "  OK"
-
-# Ajouter au profil
-if ! grep -q "Oktopios" "$HOME/.profile" 2>/dev/null; then
-    echo "" >> "$HOME/.profile"
-    echo "# Oktopios" >> "$HOME/.profile"
-    echo "export PATH=\"/usr/local/bin:\$PATH\"" >> "$HOME/.profile"
+# Vérification
+if command -v okp >/dev/null 2>&1; then
+    VER="$(okp --version 2>/dev/null || echo '?')"
+    ok "Commande okp disponible ($VER)"
+else
+    info "La commande 'okp' n'est pas encore dans le PATH."
+    info "Utilisez : python3 -m vm.main --version"
 fi
 
-echo ""
-echo "  ============================================"
-echo "   Installation terminee sur iPhone/iPad !"
-echo "  ============================================"
-echo ""
-echo "  Testez avec :"
-echo "    okp --version"
-echo "    okp 'print(\"Bonjour depuis iPhone !\")'"
-echo "    okp --repl"
-echo ""
+printf '\n%s  ════════════════════════════════════════════%s\n' "$GREEN" "$RESET"
+printf '%s   ✅ Oktopios installé sur iPhone / iPad !%s\n'      "$GREEN" "$RESET"
+printf '%s  ════════════════════════════════════════════%s\n\n' "$GREEN" "$RESET"
+
+printf '  Testez maintenant :\n\n'
+printf '  %s    okp --version%s\n'                          "$CYAN" "$RESET"
+printf '  %s    okp '\''print("Bonjour depuis iPhone !")'\''%s\n' "$CYAN" "$RESET"
+printf '  %s    okp --repl%s\n\n'                           "$CYAN" "$RESET"
+
+printf '  Options utiles :\n'
+printf '  %s    pip install --break-system-packages oktopios[system]%s   (System.uptime / memory_info)\n' "$CYAN" "$RESET"
+printf '\n'
 
 # Test immédiat
-okp 'print("Oktopios fonctionne sur iPhone !")' 2>/dev/null && \
-    echo "  Test OK !" || echo "  Tapez: source ~/.profile puis: okp --version"
+okp 'print("🐙 Oktopios fonctionne sur iPhone !")' 2>/dev/null && \
+    ok "Test réussi !" || info "Ouvrez un nouveau shell puis : okp --version"
