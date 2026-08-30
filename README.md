@@ -66,10 +66,12 @@ tentRandom
 pip install oktopios
 ```
 
-L'installation de base reste légère. Pour `DataImport`, `Recognize` ou
-`IAModule`, installez l'extra correspondant :
+L'installation de base est **100 % pur Python** (Python **3.8+**), sans aucune
+compilation — elle s'installe donc partout, y compris sur Termux/Android. Pour
+des fonctionnalités supplémentaires, installez l'extra correspondant :
 
 ```bash
+pip install oktopios[system]        # System.uptime / memory_info (psutil)
 pip install oktopios[data]          # json/excel/sql/mysql
 pip install oktopios[recognition]   # reconnaissance faciale/vocale
 pip install oktopios[ia]            # Ollama/DeepSeek/StarCoder
@@ -124,6 +126,14 @@ Installez Termux depuis F-Droid, puis :
 pkg install python git -y
 pip install oktopios
 okp --version
+```
+
+Le cœur d'Oktopios est pur Python et ne dépend d'aucune extension à compiler,
+donc l'installation fonctionne même sur les anciens builds de Termux. Si votre
+Python est plus ancien que 3.8 et que `pip` refuse l'installation, forcez-la :
+
+```bash
+pip install --ignore-requires-python oktopios
 ```
 
 ### iPhone ou iPad avec iSH 🐙

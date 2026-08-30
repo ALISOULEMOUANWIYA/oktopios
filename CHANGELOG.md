@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.6] — Compatibilité élargie (Python 3.8+, Termux/Android)
+
+### Changé
+
+- **`requires-python` abaissé de `>=3.10` à `>=3.8`** — le cœur d'Oktopios
+  n'utilise aucune fonctionnalité réservée à 3.9/3.10+. Oktopios s'installe
+  désormais sur des Python plus anciens (utile sur Termux/Android et les
+  environnements figés).
+- **`psutil` déplacé des dépendances de base vers l'extra `[system]`.** C'était
+  la seule dépendance de base à contenir une extension C (compilation requise,
+  qui échouait souvent sur Termux). Le cœur est maintenant **100 % pur Python**
+  (`colorama`, `tabulate`) et s'installe sans compilateur, partout.
+  `System.uptime` / `System.memory_info` nécessitent `pip install oktopios[system]`
+  (sinon ils renvoient `null`, comportement déjà géré). `[all]` inclut `[system]`.
+
+### Ajouté
+
+- Matrice CI étendue aux Python **3.8** et **3.9** (en plus de 3.10/3.11/3.12).
+- Documentation Termux mise à jour (installation pure-Python + repli
+  `--ignore-requires-python` pour les très anciens Python).
+
+---
+
 ## [0.2.5] — Namespace `Fmt` — formatage humain de valeurs
 
 ### Ajouté

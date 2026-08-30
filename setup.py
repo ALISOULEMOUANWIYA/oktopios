@@ -35,20 +35,22 @@ if os.path.exists("README.md"):
 
 setup(
     name="oktopios",
-    version="0.1.0",
+    version="0.2.6",
     description="Oktopios - un langage de programmation moderne, expressif et bio-inspire",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Mouanwiya Ali Soule",
     license="MIT",
-    python_requires=">=3.10",
+    python_requires=">=3.8",
     packages=find_packages(include=["vm", "vm.*"]),
+    # Coeur : 100 % pur Python, aucune compilation (installe partout, Termux inclus).
     install_requires=[
         "colorama>=0.4.6",
         "tabulate>=0.9.0",
-        "psutil>=5.9",
     ],
     extras_require={
+        # System.uptime / System.memory_info (psutil : extension C, optionnelle)
+        "system": ["psutil>=5.9"],
         # DataImport (json/excel/sql/mysql)
         "data": ["openpyxl>=3.1", "pymysql>=1.1"],
         # Recognize (faciale/vocale)
@@ -56,7 +58,7 @@ setup(
         # IAModule (Ollama/DeepSeek/StarCoder)
         "ia": ["requests>=2.31"],
         # Tout d'un coup, pour les fanatiques qui veulent tout essayer
-        "all": ["openpyxl>=3.1", "pymysql>=1.1",
+        "all": ["psutil>=5.9", "openpyxl>=3.1", "pymysql>=1.1",
                 "opencv-contrib-python-headless>=4.8", "librosa>=0.10", "soundfile>=0.12",
                 "requests>=2.31"],
     },
