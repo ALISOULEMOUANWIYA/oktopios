@@ -23,6 +23,8 @@ import difflib as _difflib
 import re as _re
 import datetime as _datetime
 import calendar as _calendar
+import csv as _csv
+import io as _io
 from . ast_nodes import OktopiosMap as _OktopiosMap, OktopiosList as _OktopiosList
 try:
     import openpyxl as _openpyxl
@@ -466,6 +468,45 @@ def _file_hash(path: str, algo: str = "sha256") -> str:
 
 
 # ---------------------------------------------------------------------------
+# Helpers pour le namespace Hash — hachage cryptographique & encodage Base64
+# ---------------------------------------------------------------------------
+import hashlib as _hashlib
+import hmac as _hmac
+import base64 as _base64
+
+def _hash_digest(algo: str, s: str) -> str:
+    """Retourne le digest hexadécimal de la chaîne `s` avec l'algorithme `algo`."""
+    return _hashlib.new(algo, str(s).encode("utf-8")).hexdigest()
+
+def _hash_hmac(key: str, msg: str, algo: str = "sha256") -> str:
+    """Retourne le HMAC-<algo> (hex) du message `msg` signé avec `key`."""
+    return _hmac.new(
+        str(key).encode("utf-8"),
+        str(msg).encode("utf-8"),
+        digestmod=_hashlib.new(algo).name
+    ).hexdigest()
+
+def _hash_b64encode(s: str) -> str:
+    return _base64.b64encode(str(s).encode("utf-8")).decode("ascii")
+
+def _hash_b64decode(s: str) -> str:
+    return _base64.b64decode(str(s).encode("ascii")).decode("utf-8")
+
+def _hash_b64url_encode(s: str) -> str:
+    return _base64.urlsafe_b64encode(str(s).encode("utf-8")).decode("ascii")
+
+def _hash_b64url_decode(s: str) -> str:
+    # Ajouter le padding manquant si nécessaire
+    data = str(s).encode("ascii")
+    data += b"=" * (-len(data) % 4)
+    return _base64.urlsafe_b64decode(data).decode("utf-8")
+
+def _hash_compare(h1: str, h2: str) -> bool:
+    """Comparaison en temps constant (résistant aux attaques temporelles)."""
+    return _hmac.compare_digest(str(h1), str(h2))
+
+
+# ---------------------------------------------------------------------------
 # Helpers pour le namespace List et Type
 # ---------------------------------------------------------------------------
 
@@ -879,6 +920,586 @@ def _http_headers(response) -> _OktopiosMap:
     return h if isinstance(h, _OktopiosMap) else _OktopiosMap(dict(h))
 
 
+# ---------------------------------------------------------------------------
+# Queue — file d'attente FIFO (premier entré, premier sorti)
+# Représentation interne : OktopiosMap { "_t": "Q", "_d": [items...] }
+# Les mutations (enqueue/dequeue/clear) modifient la liste interne en place.
+# ---------------------------------------------------------------------------
+
+def _queue_create(lst=None):
+    items = list(lst) if lst is not None else []
+    return _OktopiosMap({"_t": "Q", "_d": items})
+
+def _queue_enqueue(q, val):
+    dict.__getitem__(q, "_d").append(val)
+    return None
+
+def _queue_dequeue(q):
+    items = dict.__getitem__(q, "_d")
+    if not items:
+        raise Exception("[Queue] Impossible de déqueuer : la file est vide")
+    return items.pop(0)
+
+def _queue_peek(q):
+    items = dict.__getitem__(q, "_d")
+    if not items:
+        raise Exception("[Queue] Impossible de lire : la file est vide")
+    return items[0]
+
+def _queue_size(q):
+    return len(dict.__getitem__(q, "_d"))
+
+def _queue_isEmpty(q):
+    return len(dict.__getitem__(q, "_d")) == 0
+
+def _queue_toList(q):
+    return _OktopiosList(list(dict.__getitem__(q, "_d")))
+
+def _queue_clear(q):
+    dict.__getitem__(q, "_d").clear()
+    return None
+
+def _queue_contains(q, val):
+    return val in dict.__getitem__(q, "_d")
+
+
+# ---------------------------------------------------------------------------
+# Stack — pile LIFO (dernier entré, premier sorti)
+# Représentation interne : OktopiosMap { "_t": "S", "_d": [items...] }
+# Le sommet (top) est le dernier élément de la liste.
+# Les mutations (push/pop/clear) modifient la liste interne en place.
+# ---------------------------------------------------------------------------
+
+def _stack_create(lst=None):
+    items = list(lst) if lst is not None else []
+    return _OktopiosMap({"_t": "S", "_d": items})
+
+def _stack_push(s, val):
+    dict.__getitem__(s, "_d").append(val)
+    return None
+
+def _stack_pop(s):
+    items = dict.__getitem__(s, "_d")
+    if not items:
+        raise Exception("[Stack] Impossible de dépiler : la pile est vide")
+    return items.pop()
+
+def _stack_peek(s):
+    items = dict.__getitem__(s, "_d")
+    if not items:
+        raise Exception("[Stack] Impossible de lire : la pile est vide")
+    return items[-1]
+
+def _stack_size(s):
+    return len(dict.__getitem__(s, "_d"))
+
+def _stack_isEmpty(s):
+    return len(dict.__getitem__(s, "_d")) == 0
+
+def _stack_toList(s):
+    return _OktopiosList(list(reversed(dict.__getitem__(s, "_d"))))
+
+def _stack_clear(s):
+    dict.__getitem__(s, "_d").clear()
+    return None
+
+def _stack_contains(s, val):
+    return val in dict.__getitem__(s, "_d")
+
+
+# ---------------------------------------------------------------------------
+# Helpers — Namespace Stats
+# Bibliothèque standard uniquement : statistics, math
+# ---------------------------------------------------------------------------
+import statistics as _statistics
+
+def _stats_to_floats(lst):
+    """Convert OktopiosList / Python list to a list of floats, raise on empty."""
+    data = list(lst)
+    if not data:
+        raise ValueError("Stats: liste vide")
+    return [float(x) for x in data]
+
+def _stats_mean(lst):
+    return _statistics.mean(_stats_to_floats(lst))
+
+def _stats_median(lst):
+    return _statistics.median(_stats_to_floats(lst))
+
+def _stats_mode(lst):
+    try:
+        return _statistics.mode(_stats_to_floats(lst))
+    except _statistics.StatisticsError:
+        # Python <3.8 raises on multimodal; return first element of most common
+        data = _stats_to_floats(lst)
+        from collections import Counter
+        return Counter(data).most_common(1)[0][0]
+
+def _stats_geomean(lst):
+    data = _stats_to_floats(lst)
+    if any(x <= 0 for x in data):
+        raise ValueError("Stats.geomean: toutes les valeurs doivent être > 0")
+    return math.exp(sum(math.log(x) for x in data) / len(data))
+
+def _stats_harmean(lst):
+    data = _stats_to_floats(lst)
+    if any(x <= 0 for x in data):
+        raise ValueError("Stats.harmean: toutes les valeurs doivent être > 0")
+    return len(data) / sum(1.0 / x for x in data)
+
+def _stats_variance(lst, pop=False):
+    data = _stats_to_floats(lst)
+    if len(data) < 2 and not pop:
+        raise ValueError("Stats.variance: au moins 2 valeurs requises (variance échantillon)")
+    return _statistics.pvariance(data) if pop else _statistics.variance(data)
+
+def _stats_stddev(lst, pop=False):
+    data = _stats_to_floats(lst)
+    if len(data) < 2 and not pop:
+        raise ValueError("Stats.stddev: au moins 2 valeurs requises (écart-type échantillon)")
+    return _statistics.pstdev(data) if pop else _statistics.stdev(data)
+
+def _stats_range(lst):
+    data = _stats_to_floats(lst)
+    return max(data) - min(data)
+
+def _stats_sorted_floats(lst):
+    return sorted(_stats_to_floats(lst))
+
+def _stats_percentile(lst, p):
+    """p in [0, 100] — interpolation linéaire (méthode exclusive)."""
+    data = _stats_sorted_floats(lst)
+    p = float(p)
+    if not (0 <= p <= 100):
+        raise ValueError("Stats.percentile: p doit être entre 0 et 100")
+    n = len(data)
+    if n == 1:
+        return data[0]
+    idx = (p / 100) * (n - 1)
+    lo, hi = int(math.floor(idx)), int(math.ceil(idx))
+    if lo == hi:
+        return data[lo]
+    return data[lo] + (data[hi] - data[lo]) * (idx - lo)
+
+def _stats_quartiles(lst):
+    q1 = _stats_percentile(lst, 25)
+    q2 = _stats_percentile(lst, 50)
+    q3 = _stats_percentile(lst, 75)
+    return _OktopiosList([q1, q2, q3])
+
+def _stats_iqr(lst):
+    return _stats_percentile(lst, 75) - _stats_percentile(lst, 25)
+
+def _stats_mad(lst):
+    """Écart absolu médian."""
+    data = _stats_to_floats(lst)
+    med = _statistics.median(data)
+    return _statistics.median([abs(x - med) for x in data])
+
+def _stats_normalize(lst):
+    """Normalisation min-max vers [0, 1]."""
+    data = _stats_to_floats(lst)
+    lo, hi = min(data), max(data)
+    if hi == lo:
+        return _OktopiosList([0.0] * len(data))
+    return _OktopiosList([(x - lo) / (hi - lo) for x in data])
+
+def _stats_zscore(lst):
+    """Z-scores (écarts centrés réduits)."""
+    data = _stats_to_floats(lst)
+    if len(data) < 2:
+        raise ValueError("Stats.zscore: au moins 2 valeurs requises")
+    mu = _statistics.mean(data)
+    sigma = _statistics.stdev(data)
+    if sigma == 0:
+        return _OktopiosList([0.0] * len(data))
+    return _OktopiosList([(x - mu) / sigma for x in data])
+
+def _stats_covariance(a, b):
+    da = _stats_to_floats(a)
+    db = _stats_to_floats(b)
+    if len(da) != len(db):
+        raise ValueError("Stats.covariance: les deux listes doivent avoir la même taille")
+    n = len(da)
+    if n < 2:
+        raise ValueError("Stats.covariance: au moins 2 paires requises")
+    mu_a, mu_b = _statistics.mean(da), _statistics.mean(db)
+    return sum((x - mu_a) * (y - mu_b) for x, y in zip(da, db)) / (n - 1)
+
+def _stats_correlation(a, b):
+    cov = _stats_covariance(a, b)
+    sa = _statistics.stdev(_stats_to_floats(a))
+    sb = _statistics.stdev(_stats_to_floats(b))
+    if sa == 0 or sb == 0:
+        return 0.0
+    return cov / (sa * sb)
+
+def _stats_describe(lst):
+    """Retourne un résumé statistique sous forme d'OktopiosMap."""
+    data = _stats_to_floats(lst)
+    n = len(data)
+    q1 = _stats_percentile(lst, 25)
+    q3 = _stats_percentile(lst, 75)
+    entries = {
+        "count":    float(n),
+        "sum":      float(sum(data)),
+        "min":      float(min(data)),
+        "max":      float(max(data)),
+        "range":    float(max(data) - min(data)),
+        "mean":     _statistics.mean(data),
+        "median":   _statistics.median(data),
+        "variance": _statistics.variance(data) if n >= 2 else 0.0,
+        "stddev":   _statistics.stdev(data) if n >= 2 else 0.0,
+        "q1":       q1,
+        "q3":       q3,
+        "iqr":      q3 - q1,
+    }
+    return _OktopiosMap(entries)
+
+
+# ---------------------------------------------------------------------------
+# Namespace Csv — lecture, écriture et conversion CSV (stdlib uniquement)
+# Utilise uniquement le module `csv` de la bibliothèque standard Python.
+# ---------------------------------------------------------------------------
+
+def _csv_to_list(rows, has_header):
+    """Convertit des lignes brutes en OktopiosList de OktopiosMap (avec en-tête)
+    ou OktopiosList de OktopiosList (sans en-tête)."""
+    if not rows:
+        return _OktopiosList([])
+    if has_header:
+        header = rows[0]
+        result = []
+        for row in rows[1:]:
+            entry = _OktopiosMap({header[i]: (row[i] if i < len(row) else "") for i in range(len(header))})
+            result.append(entry)
+        return _OktopiosList(result)
+    else:
+        return _OktopiosList([_OktopiosList(row) for row in rows])
+
+
+def _csv_read(path, delimiter=",", has_header=True):
+    """Lit un fichier CSV et retourne une liste de maps (avec en-tête)
+    ou une liste de listes (sans en-tête)."""
+    with open(str(path), newline="", encoding="utf-8-sig") as f:
+        reader = _csv.reader(f, delimiter=str(delimiter))
+        rows = list(reader)
+    return _csv_to_list(rows, bool(has_header))
+
+
+def _csv_write(path, data, delimiter=",", header=None):
+    """Écrit des données dans un fichier CSV.
+    data peut être une liste de maps ou une liste de listes."""
+    rows = []
+    # Détecter si c'est une liste de maps (OktopiosMap ou dict)
+    if data and isinstance(data[0] if not hasattr(data, 'values') else list(data.values)[0], (_OktopiosMap, dict)):
+        items = data.values if hasattr(data, 'values') else data
+        first = items[0] if not hasattr(items, '__getitem__') else items[0]
+        keys = list(first.values.keys()) if hasattr(first, 'values') else list(first.keys())
+        if header is None:
+            header = keys
+        rows.append(header)
+        for item in (items.values if hasattr(items, 'values') else items):
+            d = item.values if hasattr(item, 'values') else item
+            rows.append([str(d.get(k, "")) for k in header])
+    else:
+        items = data.values if hasattr(data, 'values') else data
+        if header:
+            rows.append(header)
+        for row in items:
+            raw = row.values if hasattr(row, 'values') else row
+            rows.append([str(v) for v in (raw if not isinstance(raw, str) else [raw])])
+    with open(str(path), "w", newline="", encoding="utf-8") as f:
+        w = _csv.writer(f, delimiter=str(delimiter))
+        w.writerows(rows)
+    return True
+
+
+def _csv_parse(text, delimiter=",", has_header=True):
+    """Analyse un texte CSV et retourne une liste de maps ou de listes."""
+    reader = _csv.reader(_io.StringIO(str(text)), delimiter=str(delimiter))
+    rows = list(reader)
+    return _csv_to_list(rows, bool(has_header))
+
+
+def _csv_stringify(data, delimiter=",", header=None):
+    """Convertit des données en texte CSV et le retourne sous forme de chaîne."""
+    buf = _io.StringIO()
+    rows = []
+    items = data.values if hasattr(data, 'values') else data
+    if items and isinstance(items[0] if not hasattr(items, '__getitem__') else items[0], (_OktopiosMap, dict)):
+        first = items[0] if not hasattr(items, '__getitem__') else items[0]
+        keys = list(first.values.keys()) if hasattr(first, 'values') else list(first.keys())
+        if header is None:
+            header = keys
+        rows.append(header)
+        for item in items:
+            d = item.values if hasattr(item, 'values') else item
+            rows.append([str(d.get(k, "")) for k in header])
+    else:
+        if header:
+            rows.append(header)
+        for row in items:
+            raw = row.values if hasattr(row, 'values') else row
+            rows.append([str(v) for v in (raw if not isinstance(raw, str) else [raw])])
+    w = _csv.writer(buf, delimiter=str(delimiter))
+    w.writerows(rows)
+    return buf.getvalue()
+
+
+def _csv_head(path, n=5, delimiter=","):
+    """Retourne les n premières lignes du fichier CSV sous forme de liste de listes."""
+    rows = []
+    with open(str(path), newline="", encoding="utf-8-sig") as f:
+        reader = _csv.reader(f, delimiter=str(delimiter))
+        for i, row in enumerate(reader):
+            if i >= int(n):
+                break
+            rows.append(_OktopiosList(row))
+    return _OktopiosList(rows)
+
+
+def _csv_columns(path, delimiter=","):
+    """Retourne la première ligne (noms des colonnes) d'un fichier CSV."""
+    with open(str(path), newline="", encoding="utf-8-sig") as f:
+        reader = _csv.reader(f, delimiter=str(delimiter))
+        header = next(reader, [])
+    return _OktopiosList(header)
+
+
+def _csv_count(path, delimiter=",", skip_header=True):
+    """Compte le nombre de lignes de données dans un fichier CSV."""
+    with open(str(path), newline="", encoding="utf-8-sig") as f:
+        total = sum(1 for _ in f)
+    return total - (1 if bool(skip_header) else 0)
+
+
+# ------------------------------------------------------------------
+# Helpers Table — rendu de tableaux formatés avec tabulate
+# ------------------------------------------------------------------
+try:
+    from tabulate import tabulate as _tabulate
+    _TABULATE_OK = True
+except ImportError:
+    _TABULATE_OK = False
+
+_TABLE_STYLES = [
+    "plain", "simple", "github", "grid", "simple_grid", "rounded_grid",
+    "heavy_grid", "pipe", "orgtbl", "presto", "pretty", "psql",
+    "rst", "mediawiki", "html", "tsv",
+]
+
+def _table_coerce(data):
+    """Converts OktopiosList/OktopiosMap rows to plain Python lists/dicts."""
+    rows = list(data) if not isinstance(data, list) else data
+    result = []
+    for row in rows:
+        if isinstance(row, _OktopiosMap):
+            result.append(dict(row))
+        elif isinstance(row, _OktopiosList):
+            result.append(list(row))
+        elif isinstance(row, list):
+            result.append(row)
+        elif isinstance(row, dict):
+            result.append(row)
+        else:
+            result.append([row])
+    return result
+
+def _table_render(data, style="simple", headers=None):
+    """Returns a formatted table string from a list of maps or lists."""
+    if not _TABULATE_OK:
+        raise RuntimeError(
+            "Le namespace Table nécessite la bibliothèque 'tabulate'.\n"
+            "Installez-la avec : pip install tabulate"
+        )
+    rows = _table_coerce(data)
+    style = str(style) if style else "simple"
+    if not rows:
+        return ""
+    # Auto-detect headers from first row if it's a dict
+    if isinstance(rows[0], dict):
+        hdrs = headers if headers is not None else "keys"
+    else:
+        hdrs = list(headers) if headers is not None else ()
+    return _tabulate(rows, headers=hdrs, tablefmt=style)
+
+def _table_print(data, style="simple", headers=None):
+    """Prints a formatted table to stdout and returns None."""
+    print(_table_render(data, style, headers))
+    return None
+
+def _table_from_csv(path, style="simple", delimiter=","):
+    """Reads a CSV file and returns a formatted table string."""
+    rows = _csv_read(path, delimiter, has_header=True)
+    return _table_render(rows, style, headers=None)
+
+def _table_column(data, key):
+    """Extracts a single column by name (str) or index (int) from data."""
+    rows = _table_coerce(data)
+    result = []
+    for row in rows:
+        if isinstance(row, dict):
+            result.append(row.get(str(key), None))
+        elif isinstance(row, list):
+            idx = int(key)
+            result.append(row[idx] if 0 <= idx < len(row) else None)
+    return _OktopiosList(result)
+
+def _table_row_count(data):
+    """Returns the number of data rows."""
+    rows = _table_coerce(data)
+    return len(rows)
+
+def _table_col_count(data):
+    """Returns the number of columns (based on first row)."""
+    rows = _table_coerce(data)
+    if not rows:
+        return 0
+    first = rows[0]
+    if isinstance(first, dict):
+        return len(first)
+    return len(first)
+
+def _table_transpose(data):
+    """Transposes rows and columns for list-of-lists data."""
+    rows = _table_coerce(data)
+    if not rows or not isinstance(rows[0], (list, _OktopiosList)):
+        return _OktopiosList([])
+    transposed = list(map(list, zip(*rows)))
+    return _OktopiosList([_OktopiosList(r) for r in transposed])
+
+# ------------------------------------------------------------------
+# Namespace Fmt — formatage humain de nombres, durées, tailles, etc.
+# Utilise uniquement la bibliothèque standard Python — aucune dépendance.
+# ------------------------------------------------------------------
+
+def _fmt_number(n, decimals=2, sep=","):
+    """Formate un nombre avec séparateur de milliers et décimales."""
+    try:
+        n = float(n)
+        decimals = int(decimals)
+        sep = str(sep) if sep is not None else ","
+        if decimals == 0:
+            fmt = f"{int(round(n)):,}".replace(",", sep)
+        else:
+            fmt = f"{n:,.{decimals}f}".replace(",", "\x00").replace(".", ".").replace("\x00", sep)
+        return fmt
+    except Exception as e:
+        return str(n)
+
+def _fmt_percent(n, decimals=1):
+    """Formate un nombre en pourcentage (0.75 → '75.0 %')."""
+    try:
+        n = float(n)
+        decimals = int(decimals)
+        return f"{n * 100:.{decimals}f} %"
+    except Exception:
+        return str(n)
+
+def _fmt_currency(n, symbol="$", decimals=2):
+    """Formate un nombre comme une valeur monétaire ('$ 1,234.50')."""
+    try:
+        n = float(n)
+        decimals = int(decimals)
+        symbol = str(symbol) if symbol is not None else "$"
+        formatted = f"{n:,.{decimals}f}"
+        return f"{symbol} {formatted}"
+    except Exception:
+        return str(n)
+
+def _fmt_bytes(n):
+    """Formate un nombre d'octets en notation humaine lisible (KB, MB, GB, …)."""
+    try:
+        n = float(n)
+        for unit in ("B", "KB", "MB", "GB", "TB", "PB"):
+            if abs(n) < 1024.0:
+                return f"{n:.2f} {unit}"
+            n /= 1024.0
+        return f"{n:.2f} EB"
+    except Exception:
+        return str(n)
+
+def _fmt_duration(seconds):
+    """Formate une durée en secondes en texte lisible ('1h 23m 5s')."""
+    try:
+        seconds = int(seconds)
+        if seconds < 0:
+            return "0s"
+        days, rem = divmod(seconds, 86400)
+        hours, rem = divmod(rem, 3600)
+        minutes, secs = divmod(rem, 60)
+        parts = []
+        if days:
+            parts.append(f"{days}j")
+        if hours:
+            parts.append(f"{hours}h")
+        if minutes:
+            parts.append(f"{minutes}m")
+        if secs or not parts:
+            parts.append(f"{secs}s")
+        return " ".join(parts)
+    except Exception:
+        return str(seconds)
+
+def _fmt_plural(n, singular, plural=None):
+    """Retourne la forme plurielle ou singulière selon n ('1 chat' / '3 chats')."""
+    try:
+        n = float(n)
+        singular = str(singular)
+        if plural is None:
+            plural = singular + "s"
+        else:
+            plural = str(plural)
+        word = singular if abs(n) <= 1 else plural
+        if n == int(n):
+            return f"{int(n)} {word}"
+        return f"{n} {word}"
+    except Exception:
+        return str(n)
+
+def _fmt_pad(s, width, char=" ", align="l"):
+    """Aligne une chaîne dans une largeur donnée (l=gauche, r=droite, c=centre)."""
+    try:
+        s = str(s)
+        width = int(width)
+        char = str(char)[0] if char else " "
+        align = str(align).lower()
+        if align in ("r", "right"):
+            return s.rjust(width, char)
+        elif align in ("c", "center", "centre"):
+            return s.center(width, char)
+        else:
+            return s.ljust(width, char)
+    except Exception:
+        return str(s)
+
+def _fmt_truncate(s, width, suffix="…"):
+    """Tronque une chaîne à width caractères en ajoutant suffix si nécessaire."""
+    try:
+        s = str(s)
+        width = int(width)
+        suffix = str(suffix) if suffix is not None else "…"
+        if len(s) <= width:
+            return s
+        cut = max(0, width - len(suffix))
+        return s[:cut] + suffix
+    except Exception:
+        return str(s)
+
+def _fmt_ordinal(n):
+    """Retourne la forme ordinale d'un entier en anglais (1 → '1st', 2 → '2nd', …)."""
+    try:
+        n = int(n)
+        if 11 <= (n % 100) <= 13:
+            suffix = "th"
+        else:
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+        return f"{n}{suffix}"
+    except Exception:
+        return str(n)
+
+# ------------------------------------------------------------------
 NativeFuncs = {
     "Math" : {
         # --- Constantes ---
@@ -1337,6 +1958,228 @@ NativeFuncs = {
         "isSuperset": lambda a, b: all(k in a for k in b),
         "isDisjoint": lambda a, b: not any(k in b for k in a),
         "equals":     lambda a, b: set(a.keys()) == set(b.keys()),
+    },
+
+    # ------------------------------------------------------------------
+    # Namespace Queue — file d'attente FIFO (premier entré, premier sorti)
+    # Représentation interne : OktopiosMap { "_t": "Q", "_d": [items] }
+    # Les mutations (enqueue/dequeue/clear) agissent directement sur la
+    # liste interne — la Queue est donc un objet mutable.
+    # ------------------------------------------------------------------
+    "Queue": {
+        # Création
+        "create":   _queue_create,
+        "fromList": lambda lst: _queue_create(lst),
+        # Mutation (FIFO)
+        "enqueue":  _queue_enqueue,   # ajoute un élément en fin de file
+        "dequeue":  _queue_dequeue,   # retire et retourne l'élément de tête
+        # Lecture sans modification
+        "peek":     _queue_peek,      # retourne l'élément de tête sans le retirer
+        "size":     _queue_size,      # nombre d'éléments dans la file
+        "isEmpty":  _queue_isEmpty,   # true si la file est vide
+        "contains": _queue_contains,  # true si val est dans la file
+        # Conversion / réinitialisation
+        "toList":   _queue_toList,    # retourne une OktopiosList (tête en premier)
+        "clear":    _queue_clear,     # vide la file
+    },
+
+    # ------------------------------------------------------------------
+    # Namespace Stack — pile LIFO (dernier entré, premier sorti)
+    # Représentation interne : OktopiosMap { "_t": "S", "_d": [items] }
+    # Le sommet (top) est le dernier élément de la liste interne.
+    # Les mutations (push/pop/clear) agissent directement sur la liste.
+    # ------------------------------------------------------------------
+    "Stack": {
+        # Création
+        "create":   _stack_create,
+        "fromList": lambda lst: _stack_create(lst),
+        # Mutation (LIFO)
+        "push":     _stack_push,      # empile un élément au sommet
+        "pop":      _stack_pop,       # dépile et retourne l'élément du sommet
+        # Lecture sans modification
+        "peek":     _stack_peek,      # retourne l'élément du sommet sans le retirer
+        "size":     _stack_size,      # nombre d'éléments dans la pile
+        "isEmpty":  _stack_isEmpty,   # true si la pile est vide
+        "contains": _stack_contains,  # true si val est dans la pile
+        # Conversion / réinitialisation
+        "toList":   _stack_toList,    # retourne une OktopiosList (sommet en premier)
+        "clear":    _stack_clear,     # vide la pile
+    },
+
+    # ------------------------------------------------------------------
+    # Namespace Hash — hachage cryptographique & encodage Base64
+    # Toutes les fonctions utilisent la bibliothèque standard Python :
+    # hashlib, hmac, base64 — aucune dépendance supplémentaire requise.
+    # ------------------------------------------------------------------
+    "Hash": {
+        # Algorithmes de hachage — retournent un digest hexadécimal (str)
+        "md5":      lambda s: _hash_digest("md5",    s),
+        "sha1":     lambda s: _hash_digest("sha1",   s),
+        "sha256":   lambda s: _hash_digest("sha256", s),
+        "sha512":   lambda s: _hash_digest("sha512", s),
+        # HMAC — code d'authentification de message
+        # hmac(key, msg, algo?)  — algo par défaut : "sha256"
+        "hmac":     lambda key, msg, algo="sha256": _hash_hmac(key, msg, algo),
+        # Encodage / décodage Base64 standard (RFC 4648 §4)
+        "b64encode":    lambda s: _hash_b64encode(s),
+        "b64decode":    lambda s: _hash_b64decode(s),
+        # Encodage / décodage Base64 URL-safe (RFC 4648 §5 — pour JWT, URLs)
+        "b64urlEncode": lambda s: _hash_b64url_encode(s),
+        "b64urlDecode": lambda s: _hash_b64url_decode(s),
+        # Comparaison en temps constant (résistant aux attaques temporelles)
+        "compare":  lambda h1, h2: _hash_compare(h1, h2),
+    },
+
+    # ------------------------------------------------------------------
+    # Namespace Stats — statistiques descriptives (stdlib uniquement)
+    # Toutes les fonctions utilisent uniquement la bibliothèque standard
+    # Python (statistics, math) — aucune dépendance externe requise.
+    # ------------------------------------------------------------------
+    "Stats": {
+        # Mesures de tendance centrale
+        "mean":        lambda lst: _stats_mean(lst),
+        "median":      lambda lst: _stats_median(lst),
+        "modeOf":      lambda lst: _stats_mode(lst),
+        "geomean":     lambda lst: _stats_geomean(lst),
+        "harmean":     lambda lst: _stats_harmean(lst),
+        # Mesures de dispersion
+        "variance":    lambda lst, pop=False: _stats_variance(lst, pop),
+        "stddev":      lambda lst, pop=False: _stats_stddev(lst, pop),
+        "range":       lambda lst: _stats_range(lst),
+        "iqr":         lambda lst: _stats_iqr(lst),
+        "mad":         lambda lst: _stats_mad(lst),
+        # Quantiles et centiles
+        "quartiles":   lambda lst: _stats_quartiles(lst),
+        "percentile":  lambda lst, p: _stats_percentile(lst, p),
+        # Normalisation et scores
+        "normalize":   lambda lst: _stats_normalize(lst),
+        "zscore":      lambda lst: _stats_zscore(lst),
+        # Relations entre deux séries
+        "covariance":  lambda a, b: _stats_covariance(a, b),
+        "correlation": lambda a, b: _stats_correlation(a, b),
+        # Utilitaires
+        "sum":         lambda lst: float(sum(lst)),
+        "min":         lambda lst: float(min(lst)),
+        "max":         lambda lst: float(max(lst)),
+        "size":        lambda lst: len(lst),
+        "describe":    lambda lst: _stats_describe(lst),
+    },
+
+    # ------------------------------------------------------------------
+    # Namespace Path — manipulation de chemins de fichiers (stdlib uniquement)
+    # Toutes les fonctions utilisent os.path et pathlib de la bibliothèque
+    # standard Python — aucune dépendance supplémentaire requise.
+    # ------------------------------------------------------------------
+    "Path": {
+        # Jointure de composantes de chemin (cross-platform)
+        "join":      lambda *parts: os.path.join(*[str(p) for p in parts]),
+        # Répertoire parent d'un chemin ("a/b/c.txt" → "a/b")
+        "dirname":   lambda p: os.path.dirname(str(p)),
+        # Nom de fichier avec extension ("a/b/c.txt" → "c.txt")
+        "basename":  lambda p: os.path.basename(str(p)),
+        # Nom de fichier SANS extension ("a/b/c.txt" → "c")
+        "stem":      lambda p: os.path.splitext(os.path.basename(str(p)))[0],
+        # Extension du fichier, avec le point ("a/b/c.txt" → ".txt")
+        "ext":       lambda p: os.path.splitext(str(p))[1],
+        # Chemin absolu résolu depuis le répertoire courant
+        "abs":       lambda p: os.path.abspath(str(p)),
+        # Chemin normalisé (résout "..", "." et les séparateurs doubles)
+        "normalize": lambda p: os.path.normpath(str(p)),
+        # Vrai si le chemin est absolu
+        "isAbs":     lambda p: os.path.isabs(str(p)),
+        # Séparation en [répertoire, fichier] → liste à deux éléments
+        "split":     lambda p: _OktopiosList(list(os.path.split(str(p)))),
+        # Séparation en [racine, extension] → liste à deux éléments
+        "splitExt":  lambda p: _OktopiosList(list(os.path.splitext(str(p)))),
+        # Répertoire de travail courant
+        "cwd":       lambda *a: os.getcwd(),
+        # Répertoire personnel de l'utilisateur (~)
+        "home":      lambda *a: os.path.expanduser("~"),
+        # Développe "~" et les variables d'environnement dans un chemin
+        "expand":    lambda p: os.path.expandvars(os.path.expanduser(str(p))),
+        # Vérifie si le chemin existe (fichier ou dossier)
+        "exists":    lambda p: os.path.exists(str(p)),
+        # Vrai si c'est un fichier régulier
+        "isFile":    lambda p: os.path.isfile(str(p)),
+        # Vrai si c'est un répertoire
+        "isDir":     lambda p: os.path.isdir(str(p)),
+        # Taille du fichier en octets
+        "size":      lambda p: os.path.getsize(str(p)) if os.path.exists(str(p)) else -1,
+        # Liste les entrées d'un répertoire (noms seulement, pas les sous-arbres)
+        "listdir":   lambda p=".": _OktopiosList(os.listdir(str(p))),
+        # Chemin relatif de p par rapport à start (défaut : répertoire courant)
+        "relpath":   lambda p, start=".": os.path.relpath(str(p), str(start)),
+    },
+
+    # ------------------------------------------------------------------
+    # Namespace Csv — lecture, écriture et conversion CSV (stdlib uniquement)
+    # Toutes les fonctions utilisent uniquement le module `csv` de la
+    # bibliothèque standard Python — aucune dépendance externe requise.
+    # ------------------------------------------------------------------
+    "Csv": {
+        # Lecture d'un fichier CSV → liste de maps (has_header=true) ou liste de listes
+        "read":       lambda path, delimiter=",", has_header=True: _csv_read(path, delimiter, has_header),
+        # Écriture de données dans un fichier CSV (liste de maps ou liste de listes)
+        "write":      lambda path, data, delimiter=",", header=None: _csv_write(path, data, delimiter, header),
+        # Analyse d'une chaîne CSV → liste de maps ou liste de listes
+        "parse":      lambda text, delimiter=",", has_header=True: _csv_parse(text, delimiter, has_header),
+        # Conversion de données en chaîne CSV
+        "stringify":  lambda data, delimiter=",", header=None: _csv_stringify(data, delimiter, header),
+        # Premières n lignes d'un fichier CSV (par défaut 5) → liste de listes
+        "head":       lambda path, n=5, delimiter=",": _csv_head(path, n, delimiter),
+        # Noms des colonnes (première ligne) → liste de chaînes
+        "columns":    lambda path, delimiter=",": _csv_columns(path, delimiter),
+        # Nombre de lignes de données (hors en-tête par défaut)
+        "count":      lambda path, delimiter=",", skip_header=True: _csv_count(path, delimiter, skip_header),
+    },
+
+    # ------------------------------------------------------------------
+    # Namespace Table — rendu de tableaux formatés en texte
+    # Utilise la bibliothèque `tabulate` (déjà incluse dans les dépendances).
+    # Supporte de nombreux styles : plain, simple, grid, pipe, github, rst …
+    # ------------------------------------------------------------------
+    "Table": {
+        # Formate data (liste de maps ou liste de listes) en chaîne tabulaire
+        "render":    lambda data, style="simple", headers=None: _table_render(data, style, headers),
+        # Affiche directement la table dans le terminal
+        "print":     lambda data, style="simple", headers=None: _table_print(data, style, headers),
+        # Liste des styles de rendu disponibles → liste de chaînes
+        "styles":    lambda *a: _OktopiosList(_TABLE_STYLES),
+        # Lit un fichier CSV et retourne une chaîne de table formatée
+        "fromCsv":   lambda path, style="simple", delimiter=",": _table_from_csv(path, style, delimiter),
+        # Extrait une colonne par son nom ou son index → liste de valeurs
+        "column":    lambda data, key: _table_column(data, key),
+        # Retourne le nombre de lignes de données
+        "rowCount":  lambda data: _table_row_count(data),
+        # Retourne le nombre de colonnes
+        "colCount":  lambda data: _table_col_count(data),
+        # Transpose lignes ↔ colonnes (liste de listes uniquement)
+        "transpose": lambda data: _table_transpose(data),
+    },
+
+    # ------------------------------------------------------------------
+    # Namespace Fmt — formatage humain de nombres, durées, tailles, etc.
+    # Utilise uniquement la bibliothèque standard Python — aucune dépendance.
+    # ------------------------------------------------------------------
+    "Fmt": {
+        # Formate un nombre avec séparateur de milliers (ex. 1234567.8 → "1,234,567.80")
+        "number":   lambda n, decimals=2, sep=",": _fmt_number(n, decimals, sep),
+        # Formate en pourcentage (ex. 0.753 → "75.3 %")
+        "percent":  lambda n, decimals=1: _fmt_percent(n, decimals),
+        # Formate en monnaie (ex. 9.5 → "$ 9.50")
+        "currency": lambda n, symbol="$", decimals=2: _fmt_currency(n, symbol, decimals),
+        # Taille en octets lisible (ex. 1536000 → "1.46 MB")
+        "bytes":    lambda n: _fmt_bytes(n),
+        # Durée en secondes lisible (ex. 3665 → "1h 1m 5s")
+        "duration": lambda s: _fmt_duration(s),
+        # Pluralisation (ex. Fmt.plural(3, "chat") → "3 chats")
+        "plural":   lambda n, singular, plural=None: _fmt_plural(n, singular, plural),
+        # Alignement dans une largeur (l=gauche, r=droite, c=centré)
+        "pad":      lambda s, width, char=" ", align="l": _fmt_pad(s, width, char, align),
+        # Troncature avec suffixe (ex. "Bonjour le monde" → "Bonj…")
+        "truncate": lambda s, width, suffix="…": _fmt_truncate(s, width, suffix),
+        # Ordinal anglais (ex. 3 → "3rd", 11 → "11th")
+        "ordinal":  lambda n: _fmt_ordinal(n),
     },
 
 }

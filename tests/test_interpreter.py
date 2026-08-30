@@ -404,3 +404,160 @@ Json.toFile("{filepath}", m)
 var loaded = Json.fromFile("{filepath}")
 print(Json.get(loaded, "val"))"""
     assert out(code, capsys) == "42"
+
+
+# ── Namespace Hash ────────────────────────────────────────────────────────────
+
+def test_hash_sha256(capsys):
+    result = out('inject Hash\nprint(Hash.sha256("hello"))', capsys)
+    assert result == "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+
+
+def test_hash_md5(capsys):
+    result = out('inject Hash\nprint(Hash.md5("hello"))', capsys)
+    assert result == "5d41402abc4b2a76b9719d911017c592"
+
+
+def test_hash_sha1(capsys):
+    result = out('inject Hash\nprint(Hash.sha1("hello"))', capsys)
+    assert result == "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d"
+
+
+def test_hash_sha512_length(capsys):
+    result = out('inject Hash\nprint(Hash.sha512("hello"))', capsys)
+    assert len(result) == 128  # SHA-512 → 64 octets → 128 hex chars
+
+
+def test_hash_b64_roundtrip(capsys):
+    result = out(
+        'inject Hash\nvar enc = Hash.b64encode("Oktopios")\nprint(Hash.b64decode(enc))',
+        capsys,
+    )
+    assert result == "Oktopios"
+
+
+def test_hash_b64url_roundtrip(capsys):
+    result = out(
+        'inject Hash\nvar t = Hash.b64urlEncode("user:42")\nprint(Hash.b64urlDecode(t))',
+        capsys,
+    )
+    assert result == "user:42"
+
+
+def test_hash_compare_equal(capsys):
+    result = out(
+        'inject Hash\nvar h = Hash.sha256("secret")\nprint(Hash.compare(h, h))',
+        capsys,
+    )
+    assert result == "true"
+
+
+def test_hash_compare_different(capsys):
+    result = out(
+        'inject Hash\nprint(Hash.compare(Hash.sha256("a"), Hash.sha256("b")))',
+        capsys,
+    )
+    assert result == "false"
+
+
+def test_hash_hmac_deterministic(capsys):
+    code = 'inject Hash\nvar s1 = Hash.hmac("k","m")\nvar s2 = Hash.hmac("k","m")\nprint(Hash.compare(s1, s2))'
+    assert out(code, capsys) == "true"
+
+
+# ── Namespace Stats ────────────────────────────────────────────────────────────
+
+def test_stats_mean(capsys):
+    result = out("inject Stats\nprint(Stats.mean([2, 4, 6]))", capsys)
+    assert float(result) == pytest.approx(4.0)
+
+
+def test_stats_median_odd(capsys):
+    result = out("inject Stats\nprint(Stats.median([1, 3, 5]))", capsys)
+    assert float(result) == pytest.approx(3.0)
+
+
+def test_stats_median_even(capsys):
+    result = out("inject Stats\nprint(Stats.median([1, 2, 3, 4]))", capsys)
+    assert float(result) == pytest.approx(2.5)
+
+
+def test_stats_mode(capsys):
+    result = out("inject Stats\nprint(Stats.modeOf([1, 2, 2, 3]))", capsys)
+    assert float(result) == pytest.approx(2.0)
+
+
+def test_stats_variance(capsys):
+    result = out("inject Stats\nprint(Stats.variance([2, 4, 4, 4, 5, 5, 7, 9]))", capsys)
+    assert float(result) == pytest.approx(4.571428, rel=1e-4)
+
+
+def test_stats_stddev(capsys):
+    result = out("inject Stats\nprint(Stats.stddev([2, 4, 4, 4, 5, 5, 7, 9]))", capsys)
+    assert float(result) == pytest.approx(2.138089, rel=1e-4)
+
+
+def test_stats_range(capsys):
+    result = out("inject Stats\nprint(Stats.range([1, 5, 3, 9, 2]))", capsys)
+    assert float(result) == pytest.approx(8.0)
+
+
+def test_stats_normalize(capsys):
+    result = out("inject Stats\nvar n = Stats.normalize([0, 5, 10])\nprint(n[1])", capsys)
+    assert float(result) == pytest.approx(0.5)
+
+
+def test_stats_zscore_mean_zero(capsys):
+    # z-scores de [2,4,6] ont une moyenne de 0
+    code = (
+        "inject Stats\n"
+        "var z = Stats.zscore([2, 4, 6])\n"
+        "print(Stats.mean(z))"
+    )
+    result = out(code, capsys)
+    assert abs(float(result)) < 1e-9
+
+
+def test_stats_correlation_perfect(capsys):
+    result = out("inject Stats\nprint(Stats.correlation([1,2,3,4,5],[2,4,6,8,10]))", capsys)
+    assert float(result) == pytest.approx(1.0, rel=1e-6)
+
+
+def test_stats_correlation_negative(capsys):
+    result = out("inject Stats\nprint(Stats.correlation([1,2,3],[6,4,2]))", capsys)
+    assert float(result) == pytest.approx(-1.0, rel=1e-6)
+
+
+def test_stats_percentile_50(capsys):
+    result = out("inject Stats\nprint(Stats.percentile([1,2,3,4,5], 50))", capsys)
+    assert float(result) == pytest.approx(3.0)
+
+
+def test_stats_iqr(capsys):
+    result = out("inject Stats\nprint(Stats.iqr([1,2,3,4,5,6,7]))", capsys)
+    assert float(result) == pytest.approx(3.0)
+
+
+def test_stats_quartiles_length(capsys):
+    result = out("inject Stats\nvar q = Stats.quartiles([1,2,3,4,5,6,7])\nprint(Stats.size(q))", capsys)
+    assert result == "3"
+
+
+def test_stats_describe_keys(capsys):
+    code = (
+        "inject Stats\n"
+        "var d = Stats.describe([1,2,3,4,5])\n"
+        'print(d["mean"])'
+    )
+    result = out(code, capsys)
+    assert float(result) == pytest.approx(3.0)
+
+
+def test_stats_count(capsys):
+    result = out("inject Stats\nprint(Stats.size([10,20,30]))", capsys)
+    assert result == "3"
+
+
+def test_stats_geomean(capsys):
+    result = out("inject Stats\nprint(Stats.geomean([1, 10, 100]))", capsys)
+    assert float(result) == pytest.approx(10.0, rel=1e-6)

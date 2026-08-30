@@ -1,5 +1,438 @@
 # Changelog
 
+## [0.2.5] — Namespace `Fmt` — formatage humain de valeurs
+
+### Ajouté
+
+**Namespace `Fmt` — 9 fonctions de formatage (stdlib uniquement, aucune dépendance)**
+
+Toutes les fonctions utilisent la bibliothèque standard Python —
+aucun `pip install` supplémentaire n'est requis.
+
+- `Fmt.number(n, decimals?, sep?)` — formate un nombre avec séparateur de milliers et décimales (`1234567.8` → `"1,234,567.80"`)
+- `Fmt.percent(n, decimals?)` — formate en pourcentage (`0.753` → `"75.3 %"`)
+- `Fmt.currency(n, symbol?, decimals?)` — formate en monnaie (`9.5` → `"$ 9.50"`, symbole configurable)
+- `Fmt.bytes(n)` — taille en octets lisible (`1536000` → `"1.46 MB"`, supporte B/KB/MB/GB/TB/PB/EB)
+- `Fmt.duration(seconds)` — durée en secondes lisible (`3665` → `"1h 1m 5s"`, inclut les jours)
+- `Fmt.plural(n, singular, plural?)` — pluralisation naturelle (`Fmt.plural(3, "chat")` → `"3 chats"`)
+- `Fmt.pad(s, width, char?, align?)` — alignement dans une largeur (l=gauche, r=droite, c=centré)
+- `Fmt.truncate(s, width, suffix?)` — troncature avec suffixe (`"Bonjour le monde"` → `"Bonj…"`)
+- `Fmt.ordinal(n)` — ordinal anglais (`3` → `"3rd"`, `11` → `"11th"`)
+
+```okp
+inject Fmt
+
+// Nombres
+print(Fmt.number(1234567.89))         // 1,234,567.89
+print(Fmt.number(1234567, 0))         // 1,234,567
+print(Fmt.number(9999.5, 2, " "))     // 9 999.50  (espace comme séparateur)
+
+// Pourcentages et monnaies
+print(Fmt.percent(0.753))             // 75.3 %
+print(Fmt.percent(0.0045, 2))         // 0.45 %
+print(Fmt.currency(1234.5))           // $ 1,234.50
+print(Fmt.currency(50, "€", 2))       // € 50.00
+
+// Tailles et durées
+print(Fmt.bytes(1024))                // 1.00 KB
+print(Fmt.bytes(1536000))             // 1.46 MB
+print(Fmt.bytes(2147483648))          // 2.00 GB
+print(Fmt.duration(45))               // 45s
+print(Fmt.duration(3665))             // 1h 1m 5s
+print(Fmt.duration(90061))            // 1j 1h 1m 1s
+
+// Pluralisation
+print(Fmt.plural(1, "fichier"))       // 1 fichier
+print(Fmt.plural(3, "fichier"))       // 3 fichiers
+print(Fmt.plural(0, "erreur"))        // 0 erreurs
+print(Fmt.plural(2, "cheval", "chevaux"))  // 2 chevaux
+
+// Alignement et troncature
+print(Fmt.pad("ok", 10))              // "ok        " (gauche par défaut)
+print(Fmt.pad("ok", 10, " ", "r"))    // "        ok"
+print(Fmt.pad("ok", 10, "-", "c"))    // "----ok----"
+print(Fmt.truncate("Bonjour tout le monde", 10))  // "Bonjour t…"
+print(Fmt.truncate("court", 10))      // "court"
+
+// Ordinal (anglais)
+print(Fmt.ordinal(1))   // 1st
+print(Fmt.ordinal(2))   // 2nd
+print(Fmt.ordinal(3))   // 3rd
+print(Fmt.ordinal(11))  // 11th
+print(Fmt.ordinal(21))  // 21st
+
+// Exemple combiné : rapport de performance
+var score = 0.876
+var total = 1048576
+var elapsed = 7384
+
+print("Score : " + Fmt.percent(score))
+print("Données traitées : " + Fmt.bytes(total))
+print("Durée : " + Fmt.duration(elapsed))
+print(Fmt.plural(42, "erreur") + " trouvée(s)")
+```
+
+### Corrigé
+
+- Chaînes contenant un backslash non-échappement (typiquement un chemin
+  Windows `"C:\Users\..."`) : le lexer plantait avec `UnicodeDecodeError`
+  car `\U` était lu comme un début d'échappement unicode invalide. La chaîne
+  est désormais conservée telle quelle en cas d'échappement invalide.
+
+---
+
+## [0.2.4] — Namespace `Table` — rendu de tableaux formatés en texte
+
+### Ajouté
+
+**Namespace `Table` — 8 fonctions de rendu tabulaire (utilise `tabulate`, déjà inclus)**
+
+Le namespace `Table` permet d'afficher n'importe quelle donnée (liste de maps, liste
+de listes) sous forme de tableau texte formaté, avec plus de 16 styles disponibles.
+Il complète naturellement le namespace `Csv` : lisez avec `Csv.read`, affichez avec `Table`.
+
+- `Table.render(data, style?, headers?)` — formate les données en chaîne de tableau (retourne `string`)
+- `Table.print(data, style?, headers?)` — affiche directement le tableau dans le terminal
+- `Table.styles()` — liste des styles disponibles : `plain`, `simple`, `grid`, `github`, `pipe`, `rst`, `html`, `tsv` …
+- `Table.fromCsv(path, style?, delimiter?)` — lit un CSV et retourne la chaîne de tableau formatée
+- `Table.column(data, key)` — extrait une colonne par son nom (string) ou son index (int)
+- `Table.rowCount(data)` — nombre de lignes de données
+- `Table.colCount(data)` — nombre de colonnes (détecté depuis la première ligne)
+- `Table.transpose(data)` — transpose lignes ↔ colonnes (liste de listes)
+
+**Styles disponibles** : `plain`, `simple` (défaut), `github`, `grid`, `simple_grid`,
+`rounded_grid`, `heavy_grid`, `pipe`, `orgtbl`, `presto`, `pretty`, `psql`,
+`rst`, `mediawiki`, `html`, `tsv`.
+
+```okp
+inject Table
+inject Csv
+
+// Depuis une liste de maps (les clés deviennent les en-têtes)
+var lignes = Csv.read("ventes.csv")
+Table.print(lignes)
+// ┌────────────┬───────────┬────────┐  (style "simple" par défaut)
+// produit       quantite    prix
+// -----------  ----------  ------
+// Pomme         120         1.5
+// Banane        85          0.9
+
+// Choisir un style
+var texte = Table.render(lignes, "grid")
+print(texte)
+
+// Depuis une liste de listes
+var matrix = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+Table.print(matrix, "rounded_grid", ["A", "B", "C"])
+
+// Lire un CSV et afficher directement
+var vue = Table.fromCsv("rapport.csv", "github")
+print(vue)
+
+// Extraire une colonne
+var prix = Table.column(lignes, "prix")
+print(prix)   // [1.5, 0.9, ...]
+
+// Statistiques rapides sur une colonne
+inject Stats
+print(Stats.mean(Table.column(lignes, "quantite")))
+
+// Transposer une matrice
+var t = Table.transpose([[1, 2], [3, 4], [5, 6]])
+Table.print(t)
+
+// Lister les styles disponibles
+print(Table.styles())
+```
+
+---
+
+## [0.2.3] — Namespace `Csv` — lecture et écriture CSV native
+
+### Ajouté
+
+**Namespace `Csv` — 7 fonctions de manipulation CSV (stdlib uniquement, aucune dépendance)**
+
+Toutes les fonctions utilisent la bibliothèque standard Python (`csv`) —
+aucun `pip install` supplémentaire n'est requis.
+
+**Lecture**
+- `Csv.read(path, delimiter?, has_header?)` — lit un fichier CSV ; retourne une liste de maps si `has_header=true` (défaut), sinon une liste de listes
+- `Csv.head(path, n?, delimiter?)` — retourne les `n` premières lignes brutes (défaut : 5)
+- `Csv.columns(path, delimiter?)` — retourne la liste des noms de colonnes (première ligne)
+- `Csv.count(path, delimiter?, skip_header?)` — nombre de lignes de données (hors en-tête)
+
+**Écriture**
+- `Csv.write(path, data, delimiter?, header?)` — écrit une liste de maps ou de listes dans un fichier CSV
+
+**Conversion en mémoire**
+- `Csv.parse(text, delimiter?, has_header?)` — analyse une chaîne CSV, sans fichier
+- `Csv.stringify(data, delimiter?, header?)` — convertit des données en chaîne CSV
+
+```okp
+inject Csv
+
+// Lire un CSV avec en-têtes → liste de maps
+var lignes = Csv.read("ventes.csv")
+print(Csv.count("ventes.csv"))   // ex: 150
+
+// Écrire un CSV
+var data = [{nom: "Alice", score: 42}, {nom: "Bob", score: 37}]
+Csv.write("resultats.csv", data)
+
+// Convertir en texte sans fichier
+var texte = Csv.stringify(data)
+print(texte)
+// nom,score
+// Alice,42
+// Bob,37
+```
+
+---
+
+## [0.2.2] — Namespace `Path` — manipulation de chemins de fichiers
+
+### Ajouté
+
+**Namespace `Path` — 16 fonctions de manipulation de chemins (stdlib uniquement, aucune dépendance)**
+
+Toutes les fonctions utilisent la bibliothèque standard Python (`os.path`) —
+aucun `pip install` supplémentaire n'est requis.
+
+**Composition et décomposition**
+- `Path.join(a, b, ...)` — joint plusieurs parties en un chemin cross-platform
+- `Path.dirname(p)` — répertoire parent (`"a/b/c.txt"` → `"a/b"`)
+- `Path.basename(p)` — nom de fichier avec extension (`"a/b/c.txt"` → `"c.txt"`)
+- `Path.stem(p)` — nom de fichier SANS extension (`"a/b/c.txt"` → `"c"`)
+- `Path.ext(p)` — extension avec le point (`"a/b/c.txt"` → `".txt"`)
+- `Path.split(p)` — liste `[répertoire, fichier]`
+- `Path.splitExt(p)` — liste `[racine, extension]`
+
+**Résolution et normalisation**
+- `Path.abs(p)` — chemin absolu résolu depuis le répertoire courant
+- `Path.normalize(p)` — normalise `..`, `.` et les séparateurs doubles
+- `Path.expand(p)` — développe `~` et les variables d'environnement
+- `Path.relpath(p, start?)` — chemin relatif de `p` depuis `start`
+
+**Informations et tests**
+- `Path.exists(p)` — vrai si le chemin existe (fichier ou dossier)
+- `Path.isFile(p)` — vrai si c'est un fichier régulier
+- `Path.isDir(p)` — vrai si c'est un répertoire
+- `Path.isAbs(p)` — vrai si le chemin est absolu
+- `Path.size(p)` — taille du fichier en octets (`-1` si introuvable)
+
+**Navigation**
+- `Path.cwd()` — répertoire de travail courant
+- `Path.home()` — répertoire personnel de l'utilisateur (`~`)
+- `Path.listdir(p?)` — liste les entrées d'un répertoire (défaut : `.`)
+
+```okp
+inject Path
+
+var p = Path.join("projets", "oktopios", "main.okp")
+print(p)              // projets/oktopios/main.okp  (ou \\ sur Windows)
+
+print(Path.dirname(p))    // projets/oktopios
+print(Path.basename(p))   // main.okp
+print(Path.stem(p))       // main
+print(Path.ext(p))        // .okp
+
+var abs = Path.abs("config.json")
+print(abs)            // chemin absolu complet
+
+print(Path.exists("README.md"))   // true / false
+print(Path.isFile("README.md"))   // true
+print(Path.isDir("vm"))           // true
+
+var entries = Path.listdir("vm")
+print(entries)        // ["interpreter.py", "lexer.py", ...]
+
+print(Path.home())    // /home/alice  (ou C:\Users\alice sur Windows)
+print(Path.cwd())     // répertoire de travail courant
+
+// Développement de ~ et variables d'environnement
+print(Path.expand("~/projets"))          // /home/alice/projets
+print(Path.expand("$HOME/projets"))      // /home/alice/projets
+```
+
+---
+
+## [0.2.1] — Namespace `Stats` — statistiques descriptives natives
+
+### Ajouté
+
+**Namespace `Stats` — 20 fonctions de statistiques descriptives (stdlib uniquement, aucune dépendance)**
+
+Toutes les fonctions utilisent la bibliothèque standard Python (`statistics`, `math`) —
+aucun `pip install` supplémentaire n'est requis.
+
+**Mesures de tendance centrale**
+- `Stats.mean(lst)` — moyenne arithmétique
+- `Stats.median(lst)` — médiane (valeur centrale)
+- `Stats.modeOf(lst)` — valeur la plus fréquente (mode) — nommé `modeOf` car `mode` est un mot réservé du langage
+- `Stats.geomean(lst)` — moyenne géométrique (valeurs > 0 requises)
+- `Stats.harmean(lst)` — moyenne harmonique (valeurs > 0 requises)
+
+**Mesures de dispersion**
+- `Stats.variance(lst, pop?)` — variance échantillon (défaut) ou population (`pop=true`)
+- `Stats.stddev(lst, pop?)` — écart-type échantillon (défaut) ou population
+- `Stats.range(lst)` — étendue (max − min)
+- `Stats.iqr(lst)` — écart interquartile (Q3 − Q1)
+- `Stats.mad(lst)` — écart absolu médian (robuste aux valeurs aberrantes)
+
+**Quantiles et centiles**
+- `Stats.quartiles(lst)` — liste `[Q1, Q2, Q3]`
+- `Stats.percentile(lst, p)` — p-ème centile (0–100), interpolation linéaire
+
+**Normalisation et scores**
+- `Stats.normalize(lst)` — normalisation min-max vers `[0, 1]`
+- `Stats.zscore(lst)` — liste des z-scores (écarts centrés réduits)
+
+**Relations entre deux séries**
+- `Stats.covariance(a, b)` — covariance échantillon entre deux listes de même taille
+- `Stats.correlation(a, b)` — coefficient de corrélation de Pearson (∈ `[−1, 1]`)
+
+**Utilitaires**
+- `Stats.sum(lst)`, `Stats.min(lst)`, `Stats.max(lst)`, `Stats.size(lst)` — agrégats de base (`size` au lieu de `count` qui est réservé)
+- `Stats.describe(lst)` — résumé complet : `{ count, sum, min, max, range, mean, median, variance, stddev, q1, q3, iqr }`
+
+```okp
+inject Stats
+
+var data = [4, 7, 13, 2, 1, 9, 3, 6, 8, 5]
+
+print(Stats.mean(data))       // 5.8
+print(Stats.median(data))     // 5.5
+print(Stats.stddev(data))     // 3.458...
+print(Stats.iqr(data))        // 5.5
+print(Stats.percentile(data, 90))  // 9.1
+
+var norm = Stats.normalize(data)
+print(norm)   // [0.25, 0.5, 1.0, 0.083..., 0.0, 0.666..., 0.166..., 0.416..., 0.583..., 0.333...]
+
+var zs = Stats.zscore(data)
+print(zs)     // liste des z-scores centrés réduits
+
+// Corrélation entre deux séries
+var x = [1, 2, 3, 4, 5]
+var y = [2, 4, 5, 4, 5]
+print(Stats.correlation(x, y))  // ~0.9
+
+// Résumé complet
+var desc = Stats.describe(data)
+print(desc.mean)    // 5.8
+print(desc.stddev)  // 3.458...
+print(desc.iqr)     // 5.5
+```
+
+---
+
+## [0.2.0] — Namespace `Hash` — hachage cryptographique & encodage Base64
+
+### Ajouté
+
+**Namespace `Hash` — 10 fonctions de hachage et d'encodage (stdlib uniquement, aucune dépendance)**
+
+Toutes les fonctions utilisent la bibliothèque standard Python (`hashlib`, `hmac`, `base64`) —
+aucun `pip install` supplémentaire n'est requis.
+
+- `Hash.md5(s)` — digest MD5 hexadécimal de la chaîne `s`
+- `Hash.sha1(s)` — digest SHA-1 hexadécimal
+- `Hash.sha256(s)` — digest SHA-256 hexadécimal (recommandé pour usage général)
+- `Hash.sha512(s)` — digest SHA-512 hexadécimal
+- `Hash.hmac(key, msg, algo?)` — HMAC signé avec `key`, algorithme configurable (défaut `"sha256"`)
+- `Hash.b64encode(s)` — encodage Base64 standard (RFC 4648 §4)
+- `Hash.b64decode(s)` — décodage Base64 standard
+- `Hash.b64urlEncode(s)` — encodage Base64 URL-safe (RFC 4648 §5, idéal pour JWT et URLs)
+- `Hash.b64urlDecode(s)` — décodage Base64 URL-safe (gère le padding automatiquement)
+- `Hash.compare(h1, h2)` — comparaison en temps constant (résistante aux attaques temporelles)
+
+```okp
+// Hachage de mot de passe (salt à gérer côté application)
+var pwd = "s3cr3t"
+print(Hash.sha256(pwd))
+// → "secret" hashed : e.g. 2bb80d537b1da3e38bd30361aa855686bde0eacd7162fef6a25fe97bf527a25b
+
+// HMAC pour signature d'API
+var sig = Hash.hmac("my-key", "payload-data")
+print(sig)  // → signature hexadécimale HMAC-SHA256
+
+// Encodage Base64 — transmission de données binaires
+var encoded = Hash.b64encode("Bonjour Oktopios !")
+print(encoded)            // Qm9uam91ciBPa3RvcGlvcyAh
+print(Hash.b64decode(encoded))  // Bonjour Oktopios !
+
+// URL-safe Base64 pour tokens JWT
+var token = Hash.b64urlEncode("user:42:admin")
+print(token)              // dXNlcjo0MjphZG1pbg==
+print(Hash.b64urlDecode(token))  // user:42:admin
+
+// Comparaison sécurisée de hachages (anti timing-attack)
+var h1 = Hash.sha256("secret")
+var h2 = Hash.sha256("secret")
+print(Hash.compare(h1, h2))  // true
+```
+
+---
+
+## [0.1.9] — Namespaces `Queue` & `Stack` — structures de données natives
+
+### Ajouté
+
+**Namespace `Queue` — file d'attente FIFO (10 fonctions)**
+
+Représentation interne : `OktopiosMap { "_t": "Q", "_d": [items] }`.
+La Queue est **mutable** : `enqueue` et `dequeue` modifient l'objet en place.
+
+- `Queue.create(liste?)` — crée une file vide ou depuis une liste existante
+- `Queue.fromList(liste)` — alias explicite pour la conversion depuis une liste
+- `Queue.enqueue(q, val)` — ajoute `val` en fin de file (O(1) amorti)
+- `Queue.dequeue(q)` — retire et retourne l'élément de tête (FIFO) ; erreur si vide
+- `Queue.peek(q)` — retourne l'élément de tête **sans le retirer** ; erreur si vide
+- `Queue.size(q)` — nombre d'éléments dans la file
+- `Queue.isEmpty(q)` — retourne `true` si la file est vide
+- `Queue.contains(q, val)` — retourne `true` si `val` est dans la file
+- `Queue.toList(q)` — convertit la file en liste Oktopios (tête en premier)
+- `Queue.clear(q)` — vide la file
+
+**Namespace `Stack` — pile LIFO (10 fonctions)**
+
+Représentation interne : `OktopiosMap { "_t": "S", "_d": [items] }`.
+La Stack est **mutable** : `push` et `pop` modifient l'objet en place. Le sommet correspond au dernier élément de la liste interne.
+
+- `Stack.create(liste?)` — crée une pile vide ou depuis une liste existante
+- `Stack.fromList(liste)` — alias explicite pour la conversion depuis une liste
+- `Stack.push(s, val)` — empile `val` au sommet (O(1))
+- `Stack.pop(s)` — dépile et retourne l'élément du sommet (LIFO) ; erreur si vide
+- `Stack.peek(s)` — retourne l'élément du sommet **sans le retirer** ; erreur si vide
+- `Stack.size(s)` — nombre d'éléments dans la pile
+- `Stack.isEmpty(s)` — retourne `true` si la pile est vide
+- `Stack.contains(s, val)` — retourne `true` si `val` est dans la pile
+- `Stack.toList(s)` — convertit la pile en liste Oktopios (sommet en premier)
+- `Stack.clear(s)` — vide la pile
+
+```okp
+// Queue — traitement en file
+var q = Queue.create()
+Queue.enqueue(q, "Alice")
+Queue.enqueue(q, "Bob")
+Queue.enqueue(q, "Charlie")
+print(Queue.peek(q))        // Alice
+print(Queue.dequeue(q))     // Alice
+print(Queue.size(q))        // 2
+print(Queue.toList(q))      // [Bob, Charlie]
+
+// Stack — pile d'appels / undo-redo
+var s = Stack.create([1, 2, 3])
+Stack.push(s, 99)
+print(Stack.peek(s))        // 99
+print(Stack.pop(s))         // 99
+print(Stack.toList(s))      // [3, 2, 1]  (sommet en premier)
+print(Stack.contains(s, 2)) // true
+```
+
+---
+
 ## [0.1.8] — Namespace `Set` — ensembles mathématiques natifs
 
 ### Ajouté

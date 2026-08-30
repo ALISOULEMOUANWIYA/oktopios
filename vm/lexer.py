@@ -283,7 +283,16 @@ def tokenize(code):
             # ré-encoder le résultat en Latin-1 ramène les octets UTF-8
             # d'origine, qu'on peut alors décoder correctement en UTF-8.
             raw = value[1:-1]
-            value = raw.encode("utf-8").decode("unicode_escape").encode("latin-1").decode("utf-8")
+            try:
+                value = raw.encode("utf-8").decode("unicode_escape").encode("latin-1").decode("utf-8")
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                # La chaîne contient un backslash qui ne forme pas une séquence
+                # d'échappement valide — typiquement un chemin Windows
+                # ("C:\\Users\\...", où "\\U" est interprété comme un début
+                # d'échappement unicode \\UXXXXXXXX invalide. Plutôt que de
+                # planter, on garde la chaîne telle quelle (backslashes
+                # littéraux).
+                value = raw
             raw_tokens.append(Token(TokenType.STR, value, line_num, column))
         elif kind in TokenType.__members__:
             if kind == "PIPE":
