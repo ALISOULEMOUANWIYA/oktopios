@@ -1,0 +1,14 @@
+# Fins de ligne — approche ciblée (pas de renormalisation globale du dépôt).
+
+# Les scripts shell DOIVENT être en LF, sinon ils échouent sur
+# Linux/macOS/Termux/iSH avec "bad interpreter: bash^M".
+*.sh   text eol=lf
+
+# Scripts Windows : CRLF.
+*.bat  text eol=crlf
+*.ps1  text eol=crlf
+
+# Binaires : aucune conversion de fin de ligne.
+*.png    binary
+*.ico    binary
+*.bundle binary
