@@ -1,4 +1,8 @@
-﻿# Oktopios 🐙 
+﻿<p align="center">
+  <img src="vm/assets/icons/oktopios-256.png" alt="Logo Oktopios" width="180">
+</p>
+
+# Oktopios 🐙 
 
 Oktopios est un langage de programmation expérimental, moderne et expressif, interprété en Python. Il combine une syntaxe lisible, un modèle orienté objet, des fonctions avancées, des modules natifs et une architecture bio-inspirée appelée architecture pieuvrique.
 
