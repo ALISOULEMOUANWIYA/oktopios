@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # ================================================
-#  Oktopios v0.0.1 - Installeur macOS
+#  Oktopios - Installeur macOS (via pip)
 #  Usage: bash install.sh
 #  Testé sur: macOS 12 Monterey, 13 Ventura, 14 Sonoma
+#
+#  Depuis la 0.2.6, le cœur d'Oktopios est 100 % pur Python :
+#  installation directe via pip (crée la commande `okp`).
 # ================================================
 
-set -e
+set -u
 
-OKP_VERSION="0.0.1"
-INSTALL_DIR="$HOME/.local/lib/oktopios"
-BIN_DIR="$HOME/.local/bin"
 GREEN="\033[32m"; CYAN="\033[36m"
 YELLOW="\033[33m"; RED="\033[31m"; RESET="\033[0m"; BOLD="\033[1m"
 
@@ -20,74 +20,47 @@ step() { echo -e "\n  ${BOLD}[$1/$2]${RESET} $3"; }
 
 echo -e ""
 echo -e "${CYAN}  ════════════════════════════════════════════${RESET}"
-echo -e "${CYAN}   🐙  Oktopios v${OKP_VERSION} - Installeur macOS${RESET}"
+echo -e "${CYAN}   🐙  Oktopios - Installeur macOS${RESET}"
 echo -e "${CYAN}  ════════════════════════════════════════════${RESET}"
 echo -e ""
 
-# 1. Vérifier Python
-step 1 5 "Vérification de Python 3.10+..."
+# 1. Python (Homebrew en secours)
+step 1 3 "Vérification de Python..."
 if ! command -v python3 &>/dev/null; then
-    info "Python3 non trouvé."
     if command -v brew &>/dev/null; then
         info "Installation via Homebrew..."
         brew install python@3.12
     else
-        fail "Installez Python depuis https://python.org ou installez Homebrew: https://brew.sh"
+        fail "Installez Python depuis https://python.org ou Homebrew (https://brew.sh)"
     fi
 fi
+ok "Python $(python3 --version 2>&1 | awk '{print $2}')"
 
-PYVER=$(python3 --version 2>&1 | awk '{print $2}')
-PYMAJ=$(echo "$PYVER" | cut -d. -f1)
-PYMIN=$(echo "$PYVER" | cut -d. -f2)
-if [ "$PYMAJ" -lt 3 ] || { [ "$PYMAJ" -eq 3 ] && [ "$PYMIN" -lt 10 ]; }; then
-    fail "Python 3.10+ requis (détecté: $PYVER). Mettez à jour via: brew install python@3.12"
-fi
-ok "Python $PYVER"
-
-# 2. Créer les dossiers
-step 2 5 "Création des dossiers..."
-mkdir -p "$INSTALL_DIR" "$BIN_DIR"
-ok "Dossiers créés"
-
-# 3. Copier les fichiers
-step 3 5 "Installation des fichiers Oktopios..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-
-if [ -f "$PROJECT_DIR/vm/main.py" ]; then
-    cp -r "$PROJECT_DIR"/. "$INSTALL_DIR/"
-    ok "Fichiers copiés dans $INSTALL_DIR"
+# 2. Installer Oktopios (pip --user)
+step 2 3 "Installation d'Oktopios (pip)..."
+if python3 -m pip install --user --upgrade oktopios >/dev/null 2>&1; then
+    ok "Oktopios installé"
+elif python3 -m pip install --user --upgrade --break-system-packages oktopios >/dev/null 2>&1; then
+    ok "Oktopios installé (--break-system-packages)"
 else
-    info "Installation via pip..."
-    python3 -m pip install oktopios --quiet --user
-    ok "Installé via pip"
+    fail "Échec de l'installation via pip. Essayez : python3 -m pip install --user oktopios"
 fi
 
-# 4. Dépendances
-step 4 5 "Installation des dépendances..."
-python3 -m pip install colorama tabulate psutil --quiet --user 2>/dev/null || \
-python3 -m pip install colorama tabulate --quiet --user
-ok "colorama, tabulate installés"
-
-# Créer wrapper okp
-cat > "$BIN_DIR/okp" << WRAPPER
-#!/usr/bin/env bash
-python3 "$INSTALL_DIR/vm/main.py" "\$@"
-WRAPPER
-chmod +x "$BIN_DIR/okp"
-ok "Lanceur okp créé"
-
-# 5. PATH
-step 5 5 "Configuration du PATH..."
+# 3. PATH (dossier des scripts utilisateur, ex. ~/Library/Python/3.x/bin)
+step 3 3 "Configuration du PATH..."
+USER_BIN="$(python3 -m site --user-base 2>/dev/null)/bin"
 SHELL_RC="$HOME/.zshrc"
-[ -n "$BASH_VERSION" ] && SHELL_RC="$HOME/.bash_profile"
-
-PATH_LINE='export PATH="$HOME/.local/bin:$PATH"'
-if ! grep -q '.local/bin' "$SHELL_RC" 2>/dev/null; then
-    echo "" >> "$SHELL_RC"
-    echo "# Oktopios" >> "$SHELL_RC"
-    echo "$PATH_LINE" >> "$SHELL_RC"
-    ok "PATH ajouté dans $SHELL_RC"
+[ -n "${BASH_VERSION:-}" ] && SHELL_RC="$HOME/.bash_profile"
+if [ -n "$USER_BIN" ] && ! echo "$PATH" | grep -q "$USER_BIN"; then
+    if ! grep -q "$USER_BIN" "$SHELL_RC" 2>/dev/null; then
+        {
+            echo ""
+            echo "# Oktopios"
+            echo "export PATH=\"$USER_BIN:\$PATH\""
+        } >> "$SHELL_RC"
+    fi
+    export PATH="$USER_BIN:$PATH"
+    ok "PATH mis à jour dans $SHELL_RC"
 else
     ok "PATH déjà configuré"
 fi
@@ -97,14 +70,15 @@ echo -e "  ${GREEN}════════════════════�
 echo -e "  ${GREEN}  ✅ Installation terminée !${RESET}"
 echo -e "  ${GREEN}════════════════════════════════════════════${RESET}"
 echo ""
-echo -e "  Rechargez le terminal :"
-echo -e "  ${CYAN}    source $SHELL_RC${RESET}"
+if command -v okp &>/dev/null; then
+    ok "okp disponible ($(okp --version 2>/dev/null || echo '?'))"
+else
+    info "Rechargez le terminal :  source $SHELL_RC"
+fi
 echo ""
 echo -e "  Testez :"
 echo -e "  ${CYAN}    okp --version${RESET}"
 echo -e "  ${CYAN}    okp 'print(\"Bonjour Oktopios !\")'${RESET}"
 echo -e "  ${CYAN}    okp --repl${RESET}"
-echo ""
-echo -e "  Tip Homebrew: vous pouvez aussi utiliser"
-echo -e "  ${CYAN}    pip install oktopios${RESET}"
+echo -e "\n  Extras : ${CYAN}pip install oktopios[all]${RESET}  (data / recognition / ia / system)"
 echo ""

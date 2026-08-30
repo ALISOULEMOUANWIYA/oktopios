@@ -116,13 +116,12 @@ okp --repl
 
 ### Windows
 ```powershell
-Remove-Item -Recurse "$env:LOCALAPPDATA\Oktopios"
-# Puis supprimer manuellement de PATH dans : Paramètres → Variables d'environnement
+pip uninstall oktopios
 ```
 
 ### Linux / macOS
 ```bash
-rm -rf ~/.local/lib/oktopios ~/.local/bin/okp
+pip uninstall oktopios
 ```
 
 ### Termux

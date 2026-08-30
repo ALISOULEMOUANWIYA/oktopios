@@ -1,95 +1,63 @@
 @echo off
 setlocal enabledelayedexpansion
-title Oktopios Installer v0.0.1
+title Oktopios Installer
 
 echo.
 echo  ====================================================
-echo   🐙  Oktopios v0.0.1 - Installeur Windows
+echo   Oktopios - Installeur Windows
 echo  ====================================================
 echo.
+echo  Le coeur d'Oktopios est 100%% pur Python : installation via pip.
+echo.
 
-:: Vérifier Python
+:: Verifier Python
 python --version >nul 2>&1
 if errorlevel 1 (
     echo  [ERREUR] Python n'est pas installe ou pas dans le PATH.
-    echo  Telechargez Python 3.10+ sur https://python.org
-    echo  (Cochez "Add Python to PATH" lors de l'installation)
+    echo  Telechargez Python 3.8+ sur https://python.org
+    echo  ^(Cochez "Add Python to PATH" lors de l'installation^)
     pause
     exit /b 1
 )
-
 for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set PYVER=%%v
 echo  [OK] Python %PYVER% detecte
 
-:: Vérifier pip
-pip --version >nul 2>&1
-if errorlevel 1 (
-    echo  [ERREUR] pip non disponible.
-    pause
-    exit /b 1
-)
-echo  [OK] pip disponible
-
-:: Définir dossier d'installation
-set "INSTALL_DIR=%LOCALAPPDATA%\Oktopios"
-set "BIN_DIR=%INSTALL_DIR%\bin"
-
+:: Installer Oktopios via pip
 echo.
-echo  Dossier d'installation : %INSTALL_DIR%
-echo.
-
-:: Créer les dossiers
-if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
-if not exist "%BIN_DIR%" mkdir "%BIN_DIR%"
-
-:: Copier les fichiers du projet
-echo  [1/4] Copie des fichiers Oktopios...
-xcopy /E /I /Y "%~dp0..\" "%INSTALL_DIR%\oktopios\" >nul 2>&1
+echo  [1/2] Installation d'Oktopios via pip...
+python -m pip install --upgrade oktopios
 if errorlevel 1 (
-    :: Fallback: télécharger depuis PyPI
-    echo  [INFO] Installation depuis PyPI...
-    pip install oktopios --quiet
+    echo  [INFO] Nouvelle tentative en mode utilisateur...
+    python -m pip install --upgrade --user oktopios
     if errorlevel 1 (
-        echo  [ERREUR] Installation echouee.
+        echo  [ERREUR] Installation echouee. Essayez: python -m pip install oktopios
         pause
         exit /b 1
     )
-    goto :create_wrapper
 )
+echo  [OK] Oktopios installe
 
-:: Installer les dépendances
-echo  [2/4] Installation des dependances...
-pip install colorama tabulate psutil --quiet
-if errorlevel 1 (
-    echo  [ERREUR] Installation des dependances echouee.
-    pause
-    exit /b 1
-)
-echo  [OK] Dependances installees
+:: Ajouter le dossier des scripts au PATH
+echo.
+echo  [2/2] Verification du PATH...
+for /f "delims=" %%s in ('python -c "import sysconfig; print(sysconfig.get_path('scripts'))" 2^>nul') do set "SCRIPTS_DIR=%%s"
 
-:create_wrapper
-:: Créer le wrapper okp.bat
-echo  [3/4] Creation du lanceur okp...
-(
-    echo @echo off
-    echo python "%INSTALL_DIR%\oktopios\vm\main.py" %%*
-) > "%BIN_DIR%\okp.bat"
-
-:: Ajouter au PATH utilisateur
-echo  [4/4] Ajout au PATH...
-set "CURRENT_PATH="
-for /f "tokens=2*" %%a in ('reg query "HKCU\Environment" /v PATH 2^>nul') do set "CURRENT_PATH=%%b"
-
-echo !CURRENT_PATH! | findstr /i "%BIN_DIR%" >nul 2>&1
-if errorlevel 1 (
-    if defined CURRENT_PATH (
-        setx PATH "!CURRENT_PATH!;%BIN_DIR%" >nul
+if defined SCRIPTS_DIR (
+    set "CURRENT_PATH="
+    for /f "tokens=2*" %%a in ('reg query "HKCU\Environment" /v PATH 2^>nul') do set "CURRENT_PATH=%%b"
+    echo !CURRENT_PATH! | findstr /i /c:"!SCRIPTS_DIR!" >nul 2>&1
+    if errorlevel 1 (
+        if defined CURRENT_PATH (
+            setx PATH "!CURRENT_PATH!;!SCRIPTS_DIR!" >nul
+        ) else (
+            setx PATH "!SCRIPTS_DIR!" >nul
+        )
+        echo  [OK] !SCRIPTS_DIR! ajoute au PATH
     ) else (
-        setx PATH "%BIN_DIR%" >nul
+        echo  [OK] Dossier des scripts deja dans le PATH
     )
-    echo  [OK] %BIN_DIR% ajoute au PATH
 ) else (
-    echo  [OK] Deja dans le PATH
+    echo  [OK] okp fourni par l'entry-point pip
 )
 
 echo.
@@ -97,12 +65,12 @@ echo  ====================================================
 echo   Installation terminee avec succes !
 echo  ====================================================
 echo.
-echo  Fermez et rouvrez PowerShell, puis testez avec :
+echo  Fermez et rouvrez le terminal, puis testez avec :
 echo.
 echo      okp --version
-echo      okp "print(\"Bonjour Oktopios !\")"
+echo      okp "print('Bonjour Oktopios !')"
 echo      okp --repl
 echo.
-echo  Documentation : okp --help
+echo  Extras : pip install oktopios[all]   ^(data / recognition / ia / system^)
 echo.
 pause
