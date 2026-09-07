@@ -1,5 +1,135 @@
 # Changelog
 
+## [0.3.0] — Namespace `Url` — manipulation d'URLs
+
+### Ajouté
+
+**Namespace `Url` — 13 fonctions de manipulation d'URLs (stdlib uniquement, aucune dépendance)**
+
+Complément naturel du namespace `Http` : analysez, construisez et encodez vos URLs
+directement en Oktopios. Toutes les fonctions utilisent `urllib.parse` de la
+bibliothèque standard Python — aucun `pip install` supplémentaire n'est requis.
+
+**Analyse**
+- `Url.parse(url)` — parse une URL en map de composantes `{ scheme, host, port, path, query, fragment, netloc, username, password }`
+- `Url.scheme(url)` — extrait le schéma (`"https"`, `"ftp"`, …)
+- `Url.host(url)` — extrait le nom d'hôte (sans port)
+- `Url.port(url)` — extrait le port (`null` si absent)
+- `Url.path(url)` — extrait le chemin (`"/api/v1/users"`)
+- `Url.query(url)` — extrait la query string brute (`"a=1&b=2"`)
+- `Url.fragment(url)` — extrait le fragment (`"section-3"`)
+
+**Construction**
+- `Url.build(parts)` — reconstruit une URL depuis un map de composantes
+- `Url.join(base, url)` — résout une URL relative par rapport à une base (RFC 3986)
+
+**Encodage**
+- `Url.encode(s)` — percent-encode une chaîne (`"hello world"` → `"hello%20world"`)
+- `Url.decode(s)` — décode une chaîne percent-encodée
+- `Url.encodeQuery(params)` — encode un map en query string (`{a:1, b:2}` → `"a=1&b=2"`)
+- `Url.decodeQuery(qs)` — décode un query string en map Oktopios
+
+```okp
+inject Url
+inject Http
+
+// Analyser une URL
+var parts = Url.parse("https://api.example.com:8080/v1/search?q=oktopios&lang=fr#results")
+print(parts.scheme)    // https
+print(parts.host)      // api.example.com
+print(parts.port)      // 8080
+print(parts.path)      // /v1/search
+print(parts.query)     // q=oktopios&lang=fr
+print(parts.fragment)  // results
+
+// Décoder les paramètres de requête
+var params = Url.decodeQuery(parts.query)
+print(params.q)        // oktopios
+print(params.lang)     // fr
+
+// Construire une URL depuis des composantes
+var url = Url.build({ scheme: "https", host: "api.example.com", path: "/v1/users", query: "active=true" })
+print(url)   // https://api.example.com/v1/users?active=true
+
+// Construire une query string depuis un map
+var qs = Url.encodeQuery({ name: "Ali Mouanwiya", page: 1, limit: 20 })
+print(qs)   // name=Ali+Mouanwiya&page=1&limit=20
+
+// Percent-encoding
+print(Url.encode("hello world & co"))   // hello%20world%20%26%20co
+print(Url.decode("hello%20world"))      // hello world
+
+// URL relative → absolue
+print(Url.join("https://example.com/a/b/", "../c"))   // https://example.com/a/c
+print(Url.join("https://example.com/page", "/api"))   // https://example.com/api
+
+// Combiné avec Http
+var base = "https://api.github.com/repos/ALISOULEMOUANWIYA/oktopios"
+var resp = Http.get(base)
+var data = Http.json(resp)
+var homepage = data.homepage
+print(Url.host(homepage))   // ex: "oktopios.dev"
+```
+
+---
+
+## [0.2.9] — Namespace `Color` — colorisation du terminal
+
+### Ajouté
+
+**Namespace `Color` — 25 fonctions de colorisation ANSI (colorama, déjà inclus)**
+
+Coloriez vos sorties terminal directement depuis Oktopios, sans aucune dépendance
+supplémentaire. `colorama` est déjà une dépendance cœur d'Oktopios. Sur Windows,
+la traduction des codes ANSI est automatique grâce à colorama.
+
+**Couleurs de premier plan** (8 couleurs normales + 7 variantes vives)
+- `Color.red(s)`, `Color.green(s)`, `Color.blue(s)`, `Color.yellow(s)`, `Color.cyan(s)`, `Color.magenta(s)`, `Color.white(s)`, `Color.black(s)`
+- `Color.bred(s)`, `Color.bgreen(s)`, `Color.bblue(s)`, `Color.byellow(s)`, `Color.bcyan(s)`, `Color.bmagenta(s)`, `Color.bwhite(s)` — variantes lumineuses (bright)
+
+**Arrière-plans** (7 couleurs)
+- `Color.bgRed(s)`, `Color.bgGreen(s)`, `Color.bgBlue(s)`, `Color.bgYellow(s)`, `Color.bgCyan(s)`, `Color.bgMagenta(s)`, `Color.bgWhite(s)`
+
+**Styles typographiques**
+- `Color.bold(s)` — texte en gras / lumineux
+- `Color.dim(s)` — texte atténué (dim)
+
+**Utilitaires**
+- `Color.reset()` — retourne la séquence de réinitialisation ANSI (`\x1b[0m`)
+- `Color.strip(s)` — supprime tous les codes ANSI d'une chaîne (utile pour log fichier)
+- `Color.length(s)` — longueur visible du texte (hors codes ANSI), pour alignement
+
+```okp
+inject Color
+
+// Messages de log colorés
+print(Color.green("[OK] ") + "Serveur démarré")
+print(Color.yellow("[WARN] ") + "Mémoire faible")
+print(Color.red("[ERR] ") + "Connexion refusée")
+
+// Titres et mises en valeur
+print(Color.bold(Color.cyan("=== Rapport Oktopios ===")))
+print(Color.dim("Version 0.2.9 — 2026"))
+
+// Arrière-plan pour alertes critiques
+print(Color.bgRed(Color.bwhite(" ALERTE CRITIQUE ")))
+
+// Tableau coloré
+var statuts = ["OK", "WARN", "FAIL"]
+for s in statuts {
+    if s == "OK"   { print(Color.green(s)) }
+    if s == "WARN" { print(Color.yellow(s)) }
+    if s == "FAIL" { print(Color.red(s)) }
+}
+
+// Nettoyage pour l'écriture dans un fichier
+var msg = Color.bold("Résultat") + " : 42"
+File.write("rapport.txt", Color.strip(msg))   // stocke sans ANSI
+print(Color.length(msg))   // longueur visible (sans les codes)
+```
+
+---
+
 ## [0.2.8] — Images visibles sur la page PyPI
 
 ### Corrigé

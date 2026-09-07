@@ -1,54 +1,79 @@
-# LinkedIn post — Oktopios v0.2.4
+# LinkedIn Post — Oktopios v0.3.0 — Namespace `Url`
 
----
+## 🇫🇷 Français
 
-🐙 **Oktopios v0.2.4 est disponible !** — Namespace `Table` : affichez vos données en tableaux formatés
+🐙 **Oktopios v0.3.0 est disponible !**
 
-Après le namespace `Csv` (v0.2.3), voici son complément naturel : **`Table`**, qui transforme n'importe quelle liste de maps ou de listes en un tableau texte lisible, avec **16 styles** au choix — et zéro nouvelle dépendance (tabulate est déjà inclus).
+Aujourd'hui, Oktopios s'enrichit du namespace **`Url`** — 13 fonctions pour manipuler les URLs directement depuis votre code `.okp`, sans aucune dépendance externe (100 % `urllib.parse`, stdlib Python).
+
+**Ce que vous pouvez faire :**
+• `Url.parse(url)` → décompose une URL en map de composantes
+• `Url.build(parts)` → reconstruit une URL depuis ses parties
+• `Url.join(base, url)` → résout une URL relative (RFC 3986)
+• `Url.encode` / `Url.decode` → percent-encoding
+• `Url.encodeQuery` / `Url.decodeQuery` → query strings ↔ maps
+• `Url.scheme`, `Url.host`, `Url.port`, `Url.path`, `Url.query`, `Url.fragment` → accès direct aux composantes
 
 ```okp
-inject Table, Csv
+inject Url
 
-var lignes = Csv.read("ventes.csv")
-Table.print(lignes)
+var p = Url.parse("https://api.example.com:8080/v1/search?q=okp&lang=fr")
+print(p.host)      // api.example.com
+print(p.port)      // 8080
+print(p.path)      // /v1/search
 
-// produit      quantite    prix
-// ----------  ----------  ------
-// Pomme              120     1.5
-// Banane              85     0.9
+var qs = Url.encodeQuery({ q: "oktopios", lang: "fr", page: 1 })
+print(qs)          // q=oktopios&lang=fr&page=1
 
-Table.print(lignes, "grid")   // bordures ASCII complètes
-Table.print(lignes, "github") // format GitHub Markdown
-Table.print(lignes, "html")   // rendu HTML
+print(Url.join("https://example.com/a/b/", "../c"))  // https://example.com/a/c
 ```
 
-**8 fonctions disponibles :**
-- `Table.render(data, style?, headers?)` — rendu en chaîne
-- `Table.print(data, style?, headers?)` — affichage direct
-- `Table.styles()` — liste les 16 styles disponibles
-- `Table.fromCsv(path, style?, delimiter?)` — CSV → table en une ligne
-- `Table.column(data, key)` — extrait une colonne par nom ou index
-- `Table.rowCount(data)` / `Table.colCount(data)` — dimensions
-- `Table.transpose(data)` — transpose lignes ↔ colonnes
+Combiné avec `Http`, `Json` et `Regex`, Oktopios dispose maintenant d'une vraie boîte à outils pour travailler avec le Web — en quelques lignes, lisibles et expressives.
 
-Combiné à `Csv`, `Stats` et `List`, `Table` rend Oktopios encore plus puissant pour l'exploration de données en ligne de commande.
-
+📦 Mise à jour : `pip install --upgrade oktopios`
 🔗 GitHub : https://github.com/ALISOULEMOUANWIYA/oktopios
-📦 PyPI : https://pypi.org/project/oktopios
+📚 PyPI : https://pypi.org/project/oktopios
 
 #OpenSource #Oktopios #Python #ProgrammingLanguage #IA
 
 ---
 
-🐙 **Oktopios v0.2.4 is out!** — `Table` namespace: display your data as formatted tables
+## 🇬🇧 English
 
-Following the `Csv` namespace (v0.2.3), here's its natural companion: **`Table`**, which turns any list of maps or lists into a readable text table with **16 built-in styles** — and zero new dependencies (tabulate is already bundled).
+🐙 **Oktopios v0.3.0 is out!**
 
-8 functions: `render`, `print`, `styles`, `fromCsv`, `column`, `rowCount`, `colCount`, `transpose`.
+Today Oktopios gains the **`Url`** namespace — 13 functions to parse, build, encode and resolve URLs directly from your `.okp` code, with zero extra dependencies (pure `urllib.parse`, Python stdlib).
 
-Combined with `Csv`, `Stats`, and `List`, the `Table` namespace makes Oktopios a capable tool for data exploration directly from the command line.
+**What you can do:**
+• `Url.parse(url)` → decompose a URL into a component map
+• `Url.build(parts)` → reconstruct a URL from its parts
+• `Url.join(base, url)` → resolve a relative URL (RFC 3986)
+• `Url.encode` / `Url.decode` → percent-encoding
+• `Url.encodeQuery` / `Url.decodeQuery` → query strings ↔ maps
+• `Url.scheme`, `Url.host`, `Url.port`, `Url.path`, `Url.query`, `Url.fragment` → direct component access
 
+```okp
+inject Url
+
+var p = Url.parse("https://api.example.com:8080/v1/search?q=okp&lang=fr")
+print(p.host)      // api.example.com
+print(p.port)      // 8080
+print(p.path)      // /v1/search
+
+var qs = Url.encodeQuery({ q: "oktopios", lang: "fr", page: 1 })
+print(qs)          // q=oktopios&lang=fr&page=1
+
+print(Url.join("https://example.com/a/b/", "../c"))  // https://example.com/a/c
+```
+
+Combined with `Http`, `Json`, and `Regex`, Oktopios now has a complete web toolkit — concise, readable, expressive.
+
+📦 Update: `pip install --upgrade oktopios`
 🔗 GitHub: https://github.com/ALISOULEMOUANWIYA/oktopios
-📦 PyPI: https://pypi.org/project/oktopios
+📚 PyPI: https://pypi.org/project/oktopios
 
 #OpenSource #Oktopios #Python #ProgrammingLanguage #IA
+
+---
+
+_Image: `docs/linkedin/linkedin_url_v030.png` (1200×630 px)_

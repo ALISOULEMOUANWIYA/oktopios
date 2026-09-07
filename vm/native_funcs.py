@@ -17,6 +17,10 @@ try:
     import psutil as _psutil
 except ImportError:
     _psutil = None
+try:
+    from colorama import Fore as _Fore, Back as _Back, Style as _Style
+except ImportError:
+    _Fore = _Back = _Style = None
 import json as _json
 import sqlite3 as _sqlite3
 import difflib as _difflib
@@ -24,6 +28,7 @@ import re as _re
 import datetime as _datetime
 import calendar as _calendar
 import csv as _csv
+import urllib.parse as _urlparse
 import io as _io
 from . ast_nodes import OktopiosMap as _OktopiosMap, OktopiosList as _OktopiosList
 try:
@@ -1500,6 +1505,46 @@ def _fmt_ordinal(n):
         return str(n)
 
 # ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Helpers Url (urllib.parse — stdlib, aucune dépendance)
+# ---------------------------------------------------------------------------
+def _url_parse(url):
+    """Retourne un map Oktopios des composantes de l'URL."""
+    r = _urlparse.urlparse(str(url))
+    return {
+        "scheme":   r.scheme,
+        "host":     r.hostname or "",
+        "port":     r.port if r.port is not None else None,
+        "path":     r.path,
+        "query":    r.query,
+        "fragment": r.fragment,
+        "username": r.username or None,
+        "password": r.password or None,
+        "netloc":   r.netloc,
+    }
+
+def _url_build(parts):
+    """Construit une URL depuis un map de composantes."""
+    scheme   = parts.get("scheme", "https")
+    netloc   = parts.get("netloc", "") or parts.get("host", "")
+    port     = parts.get("port")
+    if port and str(port) not in netloc:
+        netloc = f"{netloc}:{port}"
+    path     = parts.get("path", "")
+    query    = parts.get("query", "")
+    fragment = parts.get("fragment", "")
+    return _urlparse.urlunparse((scheme, netloc, path, "", query, fragment))
+
+def _url_encode_query(params):
+    """Encode un map en query string (ex. {'a':1,'b':2} → 'a=1&b=2')."""
+    return _urlparse.urlencode({str(k): str(v) for k, v in params.items()})
+
+def _url_decode_query(qs):
+    """Décode un query string en map Oktopios."""
+    parsed = _urlparse.parse_qs(str(qs), keep_blank_values=True)
+    # parse_qs retourne des listes ; si longueur 1, on retourne la valeur directe
+    return {k: (v[0] if len(v) == 1 else v) for k, v in parsed.items()}
+
 NativeFuncs = {
     "Math" : {
         # --- Constantes ---
@@ -2180,6 +2225,83 @@ NativeFuncs = {
         "truncate": lambda s, width, suffix="…": _fmt_truncate(s, width, suffix),
         # Ordinal anglais (ex. 3 → "3rd", 11 → "11th")
         "ordinal":  lambda n: _fmt_ordinal(n),
+    },
+
+    # ------------------------------------------------------------------
+    # Namespace Color — colorisation du terminal (ANSI via colorama)
+    # colorama est déjà une dépendance core d'Oktopios — aucun install requis.
+    # Chaque fonction entoure le texte de codes ANSI et réinitialise ensuite.
+    # Sur Windows, colorama traduit les codes ANSI automatiquement.
+    # ------------------------------------------------------------------
+    "Color": {
+        # --- Couleurs de premier plan ---
+        "red":      lambda s: ((_Fore.RED     + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "green":    lambda s: ((_Fore.GREEN   + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "blue":     lambda s: ((_Fore.BLUE    + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "yellow":   lambda s: ((_Fore.YELLOW  + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "cyan":     lambda s: ((_Fore.CYAN    + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "magenta":  lambda s: ((_Fore.MAGENTA + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "white":    lambda s: ((_Fore.WHITE   + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "black":    lambda s: ((_Fore.BLACK   + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        # --- Couleurs vives (bright) ---
+        "bred":     lambda s: ((_Fore.LIGHTRED_EX     + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "bgreen":   lambda s: ((_Fore.LIGHTGREEN_EX   + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "bblue":    lambda s: ((_Fore.LIGHTBLUE_EX    + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "byellow":  lambda s: ((_Fore.LIGHTYELLOW_EX  + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "bcyan":    lambda s: ((_Fore.LIGHTCYAN_EX    + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "bmagenta": lambda s: ((_Fore.LIGHTMAGENTA_EX + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        "bwhite":   lambda s: ((_Fore.LIGHTWHITE_EX   + str(s) + _Style.RESET_ALL) if _Fore else str(s)),
+        # --- Arrière-plans ---
+        "bgRed":     lambda s: ((_Back.RED     + str(s) + _Style.RESET_ALL) if _Back else str(s)),
+        "bgGreen":   lambda s: ((_Back.GREEN   + str(s) + _Style.RESET_ALL) if _Back else str(s)),
+        "bgBlue":    lambda s: ((_Back.BLUE    + str(s) + _Style.RESET_ALL) if _Back else str(s)),
+        "bgYellow":  lambda s: ((_Back.YELLOW  + str(s) + _Style.RESET_ALL) if _Back else str(s)),
+        "bgCyan":    lambda s: ((_Back.CYAN    + str(s) + _Style.RESET_ALL) if _Back else str(s)),
+        "bgMagenta": lambda s: ((_Back.MAGENTA + str(s) + _Style.RESET_ALL) if _Back else str(s)),
+        "bgWhite":   lambda s: ((_Back.WHITE   + str(s) + _Style.RESET_ALL) if _Back else str(s)),
+        # --- Styles ---
+        "bold":      lambda s: ((_Style.BRIGHT + str(s) + _Style.RESET_ALL) if _Style else str(s)),
+        "dim":       lambda s: ((_Style.DIM    + str(s) + _Style.RESET_ALL) if _Style else str(s)),
+        # --- Utilitaires ---
+        "reset":     lambda: (_Style.RESET_ALL if _Style else ""),
+        # Supprime tous les codes ANSI d'une chaîne
+        "strip":     lambda s: _re.sub(r'\x1b\[[0-9;]*m', '', str(s)),
+        # Longueur visible (hors codes ANSI)
+        "length":    lambda s: len(_re.sub(r'\x1b\[[0-9;]*m', '', str(s))),
+    },
+
+    # ------------------------------------------------------------------
+    # Namespace Url — manipulation d'URLs (urllib.parse, stdlib uniquement)
+    # Complément naturel du namespace Http : construisez et décortiquez
+    # vos URLs directement en Oktopios, sans dépendance externe.
+    # ------------------------------------------------------------------
+    "Url": {
+        # Parse une URL en map de composantes {scheme, host, port, path, query, fragment, ...}
+        "parse":       lambda url: _url_parse(url),
+        # Reconstruit une URL depuis un map de composantes
+        "build":       lambda parts: _url_build(parts),
+        # Encode une chaîne en percent-encoding (ex. "hello world" → "hello%20world")
+        "encode":      lambda s: _urlparse.quote(str(s)),
+        # Décode une chaîne percent-encodée
+        "decode":      lambda s: _urlparse.unquote(str(s)),
+        # Encode un map en query string (ex. {a:1, b:2} → "a=1&b=2")
+        "encodeQuery": lambda params: _url_encode_query(params),
+        # Décode un query string en map Oktopios
+        "decodeQuery": lambda qs: _url_decode_query(qs),
+        # Résout une URL relative par rapport à une base (ex. join("https://ex.com/a/", "../b") → "https://ex.com/b")
+        "join":        lambda base, url: _urlparse.urljoin(str(base), str(url)),
+        # Extrait le schéma (ex. "https://example.com" → "https")
+        "scheme":      lambda url: _urlparse.urlparse(str(url)).scheme,
+        # Extrait le host (ex. "https://example.com:8080/p" → "example.com")
+        "host":        lambda url: _urlparse.urlparse(str(url)).hostname or "",
+        # Extrait le port (null si absent)
+        "port":        lambda url: _urlparse.urlparse(str(url)).port,
+        # Extrait le chemin (ex. "https://example.com/a/b?x=1" → "/a/b")
+        "path":        lambda url: _urlparse.urlparse(str(url)).path,
+        # Extrait la query string brute (ex. "https://example.com/p?a=1&b=2" → "a=1&b=2")
+        "query":       lambda url: _urlparse.urlparse(str(url)).query,
+        # Extrait le fragment (ex. "https://example.com/p#section" → "section")
+        "fragment":    lambda url: _urlparse.urlparse(str(url)).fragment,
     },
 
 }
