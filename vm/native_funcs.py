@@ -170,6 +170,39 @@ def _read_sql(path, query="SELECT name FROM sqlite_master WHERE type='table'"):
     return _wrap_rows(rows)
 
 
+def _exec_sql(path, sql, params=None):
+    """Exécute une instruction SQLite paramétrée avec commit.
+
+    - SELECT / PRAGMA  -> renvoie la liste des lignes (list de Map)
+    - INSERT/UPDATE/DELETE/CREATE... -> commit puis renvoie le nombre de
+      lignes affectées (rowcount)
+
+    `params` (liste) alimente les placeholders `?` — évite l'injection SQL :
+        execSQL(db, "UPDATE users SET age = ? WHERE name = ?", [31, "Awa"])
+    """
+    if params is None:
+        p = []
+    elif isinstance(params, (list, tuple)):
+        p = list(params)
+    elif hasattr(params, "__iter__") and not isinstance(params, (str, bytes)):
+        p = list(params)
+    else:
+        p = [params]
+    conn = _sqlite3.connect(path)
+    conn.row_factory = _sqlite3.Row
+    try:
+        cur = conn.execute(sql, p)
+        low = sql.lstrip().lower()
+        if low.startswith("select") or low.startswith("pragma"):
+            result = _OktopiosList([_OktopiosMap(dict(r)) for r in cur.fetchall()])
+            conn.commit()
+            return result
+        conn.commit()
+        return cur.rowcount
+    finally:
+        conn.close()
+
+
 def _read_mysql(host, user, password, database, query, port=3306):
     if _pymysql is None:
         raise ImportError("pymysql n'est pas installé. Lancez : pip install pymysql")
@@ -564,6 +597,70 @@ def _oktype(x) -> str:
         return "map"
     # Retourne le nom de classe pour les types personnalisés (Tentacle, etc.)
     return type(x).__name__
+
+
+# ---------------------------------------------------------------------------
+# Réflexion sur les objets (instances de classes Oktopios)
+# ---------------------------------------------------------------------------
+# Ces helpers permettent d'inspecter et de manipuler dynamiquement les champs
+# d'une instance depuis du code Oktopios — brique indispensable pour un ORM
+# (mapper génériquement un modèle vers une table, hydrater une ligne en objet).
+# On utilise du duck-typing (pas d'import de RuntimeInstance) pour éviter tout
+# import circulaire : une instance expose .fields (dict nom -> RuntimeField) et
+# .klass (la classe, avec .name).
+
+def _is_okobject(x) -> bool:
+    """True si x est une instance d'une classe Oktopios (pas un type natif)."""
+    return hasattr(x, "fields") and hasattr(x, "klass") and hasattr(x, "get_field")
+
+
+def _obj_class_name(x) -> str:
+    """Nom de la classe Oktopios d'une instance (ou le type natif sinon)."""
+    if _is_okobject(x):
+        return getattr(x.klass, "name", None) or type(x).__name__
+    return _oktype(x)
+
+
+def _obj_fields(x):
+    """Liste des noms de champs déclarés sur l'instance."""
+    if not _is_okobject(x):
+        raise Exception("[Erreur] Type.fields attend un objet (instance de classe)")
+    return _OktopiosList(list(x.fields.keys()))
+
+
+def _obj_get(x, name):
+    """Valeur d'un champ par son nom (réflexion — ignore la visibilité)."""
+    if not _is_okobject(x):
+        raise Exception("[Erreur] Type.get attend un objet (instance de classe)")
+    field = x.fields.get(str(name))
+    if field is None:
+        raise Exception(f"[Erreur] Champ inconnu: {name}")
+    return field.value
+
+
+def _obj_set(x, name, value):
+    """Écrit un champ par son nom (réflexion). Refuse les constantes."""
+    if not _is_okobject(x):
+        raise Exception("[Erreur] Type.set attend un objet (instance de classe)")
+    field = x.fields.get(str(name))
+    if field is None:
+        raise Exception(f"[Erreur] Champ inconnu: {name}")
+    if getattr(field, "is_constant", False):
+        raise Exception(f"[Erreur] Champ constant non modifiable: {name}")
+    field.value = value
+    return value
+
+
+def _obj_has(x, name) -> bool:
+    """True si l'instance possède un champ nommé `name`."""
+    return _is_okobject(x) and str(name) in x.fields
+
+
+def _obj_to_map(x):
+    """Convertit une instance en Map { champ: valeur } — entité -> ligne."""
+    if not _is_okobject(x):
+        raise Exception("[Erreur] Type.toMap attend un objet (instance de classe)")
+    return _OktopiosMap({k: f.value for k, f in x.fields.items()})
 
 
 
@@ -1838,6 +1935,14 @@ NativeFuncs = {
         "isMap":    lambda x: isinstance(x, (dict, _OktopiosMap)),
         "isNull":   lambda x: x is None,
         "isNum":    lambda x: isinstance(x, (int, float)) and not isinstance(x, bool),
+        # --- Réflexion sur les objets (instances de classes) — base ORM ---
+        "isObject":  lambda x: _is_okobject(x),
+        "className":  lambda x: _obj_class_name(x),
+        "fields":     lambda x: _obj_fields(x),
+        "get":        lambda x, name: _obj_get(x, name),
+        "set":        lambda x, name, value: _obj_set(x, name, value),
+        "has":        lambda x, name: _obj_has(x, name),
+        "toMap":      lambda x: _obj_to_map(x),
     },
     # ---------    # -------------------------------------------------------------------
     # List — utilitaires fonctionnels sur les listes
@@ -1902,6 +2007,8 @@ NativeFuncs = {
         "writeExcel": lambda path, data, sheet="Sheet1": _write_excel(path, data, sheet),
         "writeSQL":   lambda path, table, data: _write_sql(path, table, data),
         "writeMySQL": lambda host, user, password, database, table, data, port=3306: _write_mysql(host, user, password, database, table, data, port),
+        # SQL paramétré avec commit : UPDATE/DELETE/CREATE + SELECT sûr (anti-injection)
+        "execSQL":    lambda path, sql, params=None: _exec_sql(path, sql, params),
     },
     "Recognize": {
         "textNormalize":   lambda s: _text_normalize(s),

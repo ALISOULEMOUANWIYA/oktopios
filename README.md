@@ -663,6 +663,43 @@ tests/                    # tests et exemples
 docs/                     # documentation
 ```
 
+## Réflexion et ORM 🐙
+
+Depuis la 0.4.0, Oktopios expose la **réflexion** sur les objets et un **SQL
+paramétré**, de quoi écrire un ORM générique en Oktopios même.
+
+```okp
+inject Type
+inject DataImport
+
+class User {
+    var id: int
+    var name: string
+    fun __construct(name: string) { this.name = name }
+}
+
+var u = new User("Awa")
+print(Type.className(u))      // "User"
+print(Type.fields(u))         // ["id", "name"]
+Type.set(u, "id", 1)
+print(Type.toMap(u))          // { id: 1, name: "Awa" }
+
+// Persistance paramétrée (anti-injection, avec commit)
+DataImport.execSQL("app.db", "CREATE TABLE users (id INTEGER, name TEXT)", [])
+DataImport.execSQL("app.db", "INSERT INTO users (id, name) VALUES (?, ?)", [1, "Awa"])
+
+// Hydratation ligne -> objet typé
+var o = Type.create("User")        // instance nue, constructeur non exécuté
+Type.set(o, "name", "Ali")
+```
+
+Réflexion disponible : `Type.isObject`, `Type.className`, `Type.fields`,
+`Type.get`, `Type.set`, `Type.has`, `Type.toMap`, `Type.create`.
+SQL : `DataImport.execSQL(db, sql, params)` (SELECT/INSERT/UPDATE/DELETE).
+
+Un **mini-ORM de référence** complet (`save`/`all`/`findBy`/`remove` génériques)
+se trouve dans [`docs/examples/orm.okp`](docs/examples/orm.okp).
+
 ## État du projet 🐙
 
 Oktopios est encore expérimental. Certaines fonctionnalités sont stables, d'autres sont en cours de conception ou d'intégration. Le langage évolue rapidement autour de trois axes :

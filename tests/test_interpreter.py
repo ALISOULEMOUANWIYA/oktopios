@@ -561,3 +561,67 @@ def test_stats_count(capsys):
 def test_stats_geomean(capsys):
     result = out("inject Stats\nprint(Stats.geomean([1, 10, 100]))", capsys)
     assert float(result) == pytest.approx(10.0, rel=1e-6)
+
+
+# ── Réflexion & ORM (base pour un ORM générique) ──────────────────────────────
+
+def test_reflection_type(capsys):
+    code = (
+        "inject Type\n"
+        "class P {\n"
+        "    var a: int\n"
+        "    fun __construct() { this.a = 5 }\n"
+        "}\n"
+        "var p = new P()\n"
+        "print(Type.className(p))\n"
+        "print(Type.isObject(p))\n"
+        "print(Type.fields(p))\n"
+        "print(Type.get(p, \"a\"))\n"
+        "Type.set(p, \"a\", 9)\n"
+        "print(Type.get(p, \"a\"))\n"
+    )
+    assert out(code, capsys) == "P\ntrue\n['a']\n5\n9"
+
+
+def test_type_create_hydration(capsys):
+    # Type.create sans argument : instance nue (constructeur non exécuté),
+    # remplie par réflexion — mécanisme d'hydratation d'un ORM.
+    code = (
+        "inject Type\n"
+        "class M {\n"
+        "    var v: int\n"
+        "    fun __construct(v: int) { this.v = v }\n"
+        "}\n"
+        "var o = Type.create(\"M\")\n"
+        "Type.set(o, \"v\", 7)\n"
+        "print(Type.className(o) + \" \" + o.v)\n"
+    )
+    assert out(code, capsys) == "M 7"
+
+
+def test_execsql_roundtrip(capsys, tmp_path):
+    db = str(tmp_path / "t.db").replace("\\", "/")
+    code = (
+        "inject DataImport\n"
+        f'DataImport.execSQL("{db}", "CREATE TABLE t (x INTEGER)", [])\n'
+        f'DataImport.execSQL("{db}", "INSERT INTO t (x) VALUES (?)", [42])\n'
+        f'var n = DataImport.execSQL("{db}", "UPDATE t SET x = ? WHERE x = ?", [43, 42])\n'
+        "print(n)\n"
+        f'print(DataImport.execSQL("{db}", "SELECT x FROM t", []))\n'
+    )
+    assert out(code, capsys) == "1\n[{'x': 43}]"
+
+
+def test_list_arg_to_function(capsys):
+    # Régression : passer une liste (ou map) en argument d'une fonction/méthode
+    # utilisateur ne doit plus planter à la résolution de signature
+    # (get_type_name renvoyait l'objet brut au lieu de "list"/"map").
+    code = (
+        "fun somme(xs: any): int {\n"
+        "    var t = 0\n"
+        "    for (x in xs) { t = t + x }\n"
+        "    return t\n"
+        "}\n"
+        "print(somme([1, 2, 3]))\n"
+    )
+    assert out(code, capsys) == "6"

@@ -1,0 +1,108 @@
+// =====================================================================
+//  Oktopios — Mini-ORM de référence (0.4.0)
+//  Démontre un ORM générique bâti UNIQUEMENT sur les primitives natives :
+//    - Réflexion : Type.fields / Type.get / Type.set / Type.create / Type.className
+//    - SQL       : DataImport.execSQL (paramétré, avec commit)
+//
+//  Un seul `Repo` fonctionne pour N'IMPORTE quel modèle, sans coder ses
+//  champs en dur (mapping objet <-> table par réflexion).
+// =====================================================================
+inject Type
+inject DataImport
+
+// ---- Modèle (une simple classe, aucun décorateur nécessaire) ----
+class Article {
+    var id: int
+    var titre: string
+    var vues: int
+
+    fun __construct(titre: string, vues: int) {
+        this.titre = titre
+        this.vues = vues
+    }
+    fun resume(): string {
+        return "#" + this.id + " " + this.titre + " (" + this.vues + " vues)"
+    }
+}
+
+// ---- Repository générique (réutilisable pour tout modèle) ----
+class Repo {
+    var db: string
+    var table: string
+    var model: string
+
+    fun __construct(db: string, table: string, model: string) {
+        this.db = db
+        this.table = table
+        this.model = model
+    }
+
+    // INSERT : champs lus par réflexion -> requête paramétrée
+    fun save(entity: any) {
+        var champs = Type.fields(entity)
+        var colonnes = ""
+        var marques = ""
+        var valeurs = []
+        for (c in champs) {
+            if (colonnes != "") { colonnes = colonnes + ", " }
+            if (marques != "") { marques = marques + ", " }
+            colonnes = colonnes + c
+            marques = marques + "?"
+            valeurs = valeurs + [Type.get(entity, c)]
+        }
+        var sql = "INSERT INTO " + this.table + " (" + colonnes + ") VALUES (" + marques + ")"
+        return DataImport.execSQL(this.db, sql, valeurs)
+    }
+
+    // SELECT ... WHERE champ = ? -> instances typées (hydratation)
+    fun findBy(champ: string, valeur: any) {
+        var sql = "SELECT * FROM " + this.table + " WHERE " + champ + " = ?"
+        var lignes = DataImport.execSQL(this.db, sql, [valeur])
+        return this.hydrater(lignes)
+    }
+
+    fun all() {
+        var lignes = DataImport.execSQL(this.db, "SELECT * FROM " + this.table, [])
+        return this.hydrater(lignes)
+    }
+
+    // Transforme chaque ligne (Map) en objet du modèle
+    fun hydrater(lignes: any) {
+        var objets = []
+        for (ligne in lignes) {
+            var obj = Type.create(this.model)
+            for (c in Type.fields(obj)) {
+                if (Type.has(obj, c)) { Type.set(obj, c, ligne[c]) }
+            }
+            objets = objets + [obj]
+        }
+        return objets
+    }
+
+    fun remove(champ: string, valeur: any) {
+        var sql = "DELETE FROM " + this.table + " WHERE " + champ + " = ?"
+        return DataImport.execSQL(this.db, sql, [valeur])
+    }
+}
+
+// ---- Démonstration ----
+var repo = new Repo("articles.db", "articles", "Article")
+DataImport.execSQL("articles.db", "DROP TABLE IF EXISTS articles", [])
+DataImport.execSQL("articles.db", "CREATE TABLE articles (id INTEGER, titre TEXT, vues INTEGER)", [])
+
+var a1 = new Article("Oktopios ORM", 120)
+Type.set(a1, "id", 1)
+var a2 = new Article("Réflexion native", 75)
+Type.set(a2, "id", 2)
+repo.save(a1)
+repo.save(a2)
+
+print("Tous les articles :")
+for (a in repo.all()) { print("  " + a.resume()) }
+
+print("Recherche id = 2 :")
+for (a in repo.findBy("id", 2)) { print("  " + a.resume()) }
+
+repo.remove("id", 1)
+print("Après suppression de id = 1 :")
+for (a in repo.all()) { print("  " + a.resume()) }

@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.4.0] — Réflexion & fondations ORM
+
+Cette version dote Oktopios des briques nécessaires pour écrire un **ORM
+générique** (mapper objet ⇆ table) directement en Oktopios — voir
+`docs/examples/orm.okp` (un `Repo` unique qui fonctionne pour tout modèle).
+
+### Ajouté
+
+**Réflexion sur les objets (namespace `Type`)** — inspecter/manipuler les champs
+d'une instance à l'exécution, sans les coder en dur :
+- `Type.isObject(x)` — vrai si `x` est une instance de classe
+- `Type.className(x)` — nom de la classe (ex. `"User"`)
+- `Type.fields(x)` — liste des noms de champs
+- `Type.get(x, nom)` / `Type.set(x, nom, valeur)` — lecture/écriture par nom dynamique
+- `Type.has(x, nom)` — présence d'un champ
+- `Type.toMap(x)` — instance → `map { champ: valeur }` (entité → ligne)
+- `Type.create(nom, ...)` — **instancie une classe par son nom**. Sans argument :
+  instance « nue » (constructeur non exécuté) destinée à l'hydratation (ligne → objet) ;
+  avec arguments : construction normale.
+
+**SQL robuste (`DataImport.execSQL`)** — exécution paramétrée avec `commit` :
+- `execSQL(db, "UPDATE … WHERE … = ?", [valeurs])` — UPDATE/DELETE/CREATE (renvoie le nombre de lignes affectées)
+- `execSQL(db, "SELECT … = ?", [valeurs])` — SELECT sûr (anti-injection, renvoie une liste de `map`)
+
+**Exemple** : `docs/examples/orm.okp` — mini-ORM de référence (`save` générique par
+réflexion, `all`/`findBy` avec hydratation en objets typés, `remove`).
+
+### Corrigé
+
+- **Passage d'une liste ou d'une map en argument d'une fonction/méthode
+  utilisateur** provoquait un crash à la résolution de signature
+  (`get_type_name` renvoyait l'objet brut au lieu de `"list"`/`"map"`). Corrigé :
+  un nom de type est désormais toujours renvoyé. Débloque notamment les appels
+  du type `repo.hydrater(lignes)`.
+
+### Limites connues (pistes pour la suite)
+
+- Pas encore de **décorateurs** déclaratifs (`@Entity`, `@Column`) — le mapping se
+  fait par convention/réflexion.
+- Certains noms SQL courants sont des **mots réservés** (`from`, `count`, `rows`,
+  `cols`, `new`…) et ne peuvent pas servir d'identifiants ; l'API de l'ORM est
+  conçue pour les éviter.
+
+---
+
 ## [0.3.1] — Namespace `Log` — journalisation structurée
 
 ### Ajouté

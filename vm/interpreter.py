@@ -106,6 +106,14 @@ class Interpreter:
             "save": lambda db_name, path: self.save_matches_db(db_name, path),
             "load": lambda db_name, path: self.load_matches_db(db_name, path),
         }
+        # Réflexion : instancier une classe par son nom (a besoin du registre
+        # self.classes, donc lié ici). Sans argument -> instance "nue" (champs
+        # par défaut, constructeur NON exécuté) destinée à être remplie via
+        # Type.set (hydratation ORM d'une ligne SQL). Avec arguments ->
+        # construction normale, comme `new NomClasse(...)`.
+        if "Type" in self.native_funcs:
+            # 'create' (et non 'new' : mot-clé réservé pour l'instanciation)
+            self.native_funcs["Type"]["create"] = lambda class_name, *args: self._reflect_new(class_name, list(args))
         # Étendre IAModule avec le fallback en cascade + le streaming (ont
         # besoin de l'interpréteur : rappeler un backend différent, ou
         # invoquer une fonction Oktopios à chaque morceau de texte reçu).
@@ -282,6 +290,22 @@ class Interpreter:
         with self._shared_lock:
             self.tentacles.append(instance)
         return instance
+
+    def _reflect_new(self, class_name, args=None):
+        """Type.new(nom, ...) : instancie une classe par son nom.
+
+        - Sans argument : instance aux champs par défaut, SANS exécuter le
+          constructeur (hydratation ORM — on remplit ensuite via Type.set).
+        - Avec arguments : construction normale (équivaut à new NomClasse(...)).
+        """
+        args = args or []
+        class_decl = self.classes.get(class_name)
+        if class_decl is None:
+            raise Exception(
+                f"[Erreur] Type.new : classe inconnue '{class_name}' "
+                f"(classes connues : {list(self.classes.keys())})"
+            )
+        return self.instantiate_class(class_decl, args=args, run_constructor=bool(args))
 
     def schedule_task(self, intention_name, args):
         """Heart 'ExecutionFlow' : place une intention en attente au lieu de
@@ -2020,7 +2044,7 @@ class Interpreter:
         finally:
             self.env = env_backup
 
-    def instantiate_class(self, class_decl, args=None):
+    def instantiate_class(self, class_decl, args=None, run_constructor=True):
         args = args or []
         instance = RuntimeInstance(class_decl, constructor_args=args, interpreter=self)
 
@@ -2110,11 +2134,15 @@ class Interpreter:
         else:
             evaluated_args = args
 
-        ctor = instance.fieldsMeth.get("__construct")
-        if isinstance(ctor, UserFunction):
-            ctor.call(self, evaluated_args)
-        elif callable(ctor):
-            ctor(*evaluated_args)
+        # run_constructor=False sert à l'hydratation ORM (Type.new sans args) :
+        # on veut une instance aux champs par défaut, sans exiger les arguments
+        # du constructeur, pour ensuite remplir les champs via Type.set.
+        if run_constructor:
+            ctor = instance.fieldsMeth.get("__construct")
+            if isinstance(ctor, UserFunction):
+                ctor.call(self, evaluated_args)
+            elif callable(ctor):
+                ctor(*evaluated_args)
 
         # --- Enregistrement de destruction automatique (façon faibles références)
         #import weakref
@@ -2872,7 +2900,20 @@ class Interpreter:
         if isinstance(val, SetInstance): return "set"
         if isinstance(val, (MapInstance or dict)): return "map"
         if isinstance(val, TupleInstance): return "tuple"
-        return val
+        # Littéraux collections (ast_nodes) : listes/maps passées en argument.
+        # Sans ces cas, on retournait l'objet brut -> crash de la résolution de
+        # signature (",".join(arg_types)) dès qu'on passait une liste/map à une
+        # fonction/méthode (ex. ORM : this.hydrater(lignes)).
+        if isinstance(val, OktopiosList): return "list"
+        if isinstance(val, OktopiosMap): return "map"
+        if isinstance(val, list): return "list"
+        if isinstance(val, dict): return "map"
+        # Instance d'une classe utilisateur -> nom de la classe.
+        klass = getattr(val, "klass", None)
+        if klass is not None and getattr(klass, "name", None):
+            return klass.name
+        # Filet de sécurité : toujours renvoyer une chaîne, jamais l'objet.
+        return type(val).__name__
 
     def evaluate_in_expr_context(self, expr):
         #print("ici dans evaluate in expr context ", expr)
@@ -3388,7 +3429,7 @@ class Interpreter:
 
         # 🔥 Déterminer les types des arguments
         arg_types = [self.get_type_name(arg) for arg in args]
-        type_signature = ",".join(arg_types)
+        type_signature = ",".join(str(t) for t in arg_types)
 
         # 🔥 Chercher avec signature complète d'abord
         full_key = f"{name}/{arity}/{type_signature}"
