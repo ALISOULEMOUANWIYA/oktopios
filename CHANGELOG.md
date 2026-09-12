@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.7.0] — Modules installables (paquets pip découvrables)
+
+### Ajouté
+
+- Les chemins de recherche de modules incluent désormais **`sys.path`
+  (site-packages)** et la variable d'environnement **`OKTOPIOS_PATH`** (façon
+  `PYTHONPATH`, dossiers séparés par `os.pathsep`).
+- `use "paquet/module.okp"` (et les imports) résolvent aussi via ces chemins.
+
+Concrètement, un paquet Oktopios **installé par pip** devient utilisable
+directement — c'est la brique qui permet un écosystème à 3 couches façon
+Django/Symfony : **langage `oktopios` → `oktopios-orm` → `oktopios-framework`**,
+chaque couche installable séparément (`pip install oktopios-orm`).
+
+---
+
 ## [0.6.0] — Réflexion des types de champs (support des migrations ORM)
 
 ### Ajouté

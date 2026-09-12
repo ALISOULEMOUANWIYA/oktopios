@@ -696,3 +696,14 @@ def test_field_types(capsys):
         "print(Type.fieldTypes(m))\n"
     )
     assert out(code, capsys) == "float\n{'id': 'int', 'name': 'string', 'price': 'float'}"
+
+
+def test_oktopios_path_search(monkeypatch, tmp_path):
+    # OKTOPIOS_PATH et sys.path (site-packages) sont ajoutés aux chemins de
+    # modules -> permet d'utiliser des paquets .okp installés par pip.
+    monkeypatch.setenv("OKTOPIOS_PATH", str(tmp_path))
+    from vm.interpreter import Interpreter
+    interp = Interpreter()
+    assert str(tmp_path) in interp.module_search_paths
+    import sys as _sys
+    assert any(p in interp.module_search_paths for p in _sys.path if p)

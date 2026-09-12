@@ -165,11 +165,22 @@ class Interpreter:
         self.modules_loaded =  []
         self.modules_loaded_alias =  {}
         self.module_cache = {}  # module_name -> namespace dict
+        import sys as _sys
         self.module_search_paths = [
-            os.getcwd(),  # current working dir
+            os.getcwd(),  # dossier courant
             os.path.join(os.getcwd(), "modules"),  # ./modules
-            # tu peux ajouter d'autres dossiers relatifs au projet
         ]
+        # OKTOPIOS_PATH : dossiers supplémentaires (façon PYTHONPATH), séparés
+        # par os.pathsep.
+        for _p in os.environ.get("OKTOPIOS_PATH", "").split(os.pathsep):
+            if _p and _p not in self.module_search_paths:
+                self.module_search_paths.append(_p)
+        # site-packages / sys.path : rend découvrables les paquets Oktopios
+        # INSTALLÉS via pip (ex. oktopios-orm, oktopios-framework) — c'est ce
+        # qui permet `use "oktopios_orm/orm.okp"` après un simple pip install.
+        for _p in _sys.path:
+            if _p and _p not in self.module_search_paths:
+                self.module_search_paths.append(_p)
         self.matches_db = {}  # nom de la base -> NeuronLoopDB (déclarations neuron_loop)
         #self.env.define("heart", Heart())
 
@@ -3784,12 +3795,26 @@ class Interpreter:
         use "file.okp" : exécute le contenu du fichier dans l'env courant.
         path_literal : la valeur string (chemin), relatif possible.
         """
-        path = path_literal
-        # si chemin relatif, normaliser par rapport au CWD
-        if not os.path.isabs(path):
-            path = os.path.join(os.getcwd(), path)
-        if not os.path.isfile(path):
-            raise Exception(f"[use] Fichier {path} introuvable")
+        # Résolution : absolu -> CWD -> chemins de modules (paquets installés,
+        # OKTOPIOS_PATH, site-packages). C'est ce qui permet d'utiliser un
+        # paquet installé par pip : use "oktopios_orm/orm.okp".
+        resolved = None
+        if os.path.isabs(path_literal):
+            if os.path.isfile(path_literal):
+                resolved = path_literal
+        else:
+            cand = os.path.join(os.getcwd(), path_literal)
+            if os.path.isfile(cand):
+                resolved = cand
+            else:
+                for root in self.module_search_paths:
+                    cand = os.path.join(root, path_literal)
+                    if os.path.isfile(cand):
+                        resolved = cand
+                        break
+        if resolved is None:
+            raise Exception(f"[use] Fichier {path_literal} introuvable")
+        path = resolved
         with open(path, "r", encoding="utf-8") as f:
             code = f.read()
         tokens = list(tokenize(code))
