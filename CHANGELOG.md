@@ -1,5 +1,83 @@
 # Changelog
 
+## [0.3.1] — Namespace `Log` — journalisation structurée
+
+### Ajouté
+
+**Namespace `Log` — 12 fonctions de journalisation horodatée (stdlib uniquement, aucune dépendance)**
+
+Toutes les fonctions utilisent uniquement la bibliothèque standard Python (`time`, `os`, `re`) —
+aucun `pip install` supplémentaire n'est requis. `colorama` (déjà inclus) est utilisé
+pour la colorisation de la sortie console.
+
+**Niveaux de log** (du plus verbeux au plus critique)
+- `Log.debug(msg)` — diagnostics de développement (cyan)
+- `Log.info(msg)` — informations générales (vert)
+- `Log.warn(msg)` — avertissements non bloquants (jaune)
+- `Log.error(msg)` — erreurs récupérables (rouge)
+- `Log.fatal(msg)` — erreurs critiques (rouge vif)
+
+**Persistance dans un fichier**
+- `Log.toFile(path, level, msg)` — écrit un message dans un fichier de log (sans codes ANSI)
+
+**Configuration globale**
+- `Log.setLevel(level)` — définit le niveau minimum : seuls les messages `>= level` sont affichés
+- `Log.configure(file?, level?, fmt?)` — configure en une fois le fichier, le niveau et le format
+- `Log.clear(path?)` — vide le fichier de log configuré (ou un chemin explicite)
+
+**Utilitaires**
+- `Log.timestamp()` — retourne le timestamp courant au format `YYYY-MM-DD HH:MM:SS`
+- `Log.levels()` — retourne la liste ordonnée des niveaux disponibles
+
+**Format par défaut** : `[LEVEL] YYYY-MM-DD HH:MM:SS — message`
+
+Le format est personnalisable via `Log.configure(fmt="{level} | {ts} | {msg}")`.
+
+```okp
+inject Log
+
+// Messages simples par niveau
+Log.debug("Connexion à la base de données...")
+Log.info("Serveur démarré sur le port 8080")
+Log.warn("Mémoire disponible faible (< 20 %)")
+Log.error("Timeout lors de la requête HTTP")
+Log.fatal("Corruption détectée dans le fichier de données")
+
+// Filtrer par niveau (ne montre que WARN et au-dessus)
+Log.setLevel("WARN")
+Log.debug("Ce message est silencieux")  // ignoré
+Log.warn("Celui-ci s'affiche")          // affiché
+
+// Activer la persistance dans un fichier
+Log.configure(file = "app.log", level = "INFO")
+Log.info("Ce message s'affiche ET est écrit dans app.log")
+Log.error("Erreur critique aussi persistée")
+
+// Format personnalisé
+Log.configure(fmt = "{level} | {ts} | {msg}")
+Log.info("Format personnalisé !")   // INFO | 2026-09-10 12:00:00 | Format personnalisé !
+
+// Écriture directe dans un fichier (sans passer par configure)
+Log.toFile("audit.log", "INFO", "Connexion utilisateur Alice")
+Log.toFile("audit.log", "WARN", "Tentative de connexion échouée")
+
+// Timestamp courant
+print(Log.timestamp())   // ex. "2026-09-10 12:00:00"
+
+// Niveaux disponibles
+print(Log.levels())      // [DEBUG, INFO, WARN, ERROR, FATAL]
+
+// Vider le fichier de log
+Log.clear("app.log")
+
+// Combiné avec Color pour des alertes personnalisées
+inject Color
+Log.configure(level = "DEBUG")
+Log.info("Rapport : " + Color.bold("42 erreurs trouvées"))
+```
+
+---
+
 ## [0.3.0] — Namespace `Url` — manipulation d'URLs
 
 ### Ajouté

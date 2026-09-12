@@ -46,4 +46,6 @@ native_functions.md
 # Scripts de publication perso et snapshots (racine uniquement, hors package)
 # NB : ancré à la racine (/) pour ne pas ignorer installers/windows/install.ps1
 /*.ps1
+/*.bat
 /*.bundle
+/generate_linkedin_image.py

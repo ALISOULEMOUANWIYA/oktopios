@@ -1545,6 +1545,80 @@ def _url_decode_query(qs):
     # parse_qs retourne des listes ; si longueur 1, on retourne la valeur directe
     return {k: (v[0] if len(v) == 1 else v) for k, v in parsed.items()}
 
+
+# ---------------------------------------------------------------------------
+# Namespace Log — journalisation structurée (stdlib uniquement)
+# Utilise uniquement time, sys, os, re de la bibliothèque standard Python.
+# ---------------------------------------------------------------------------
+
+# Niveaux de log (ordre croissant de sévérité)
+_LOG_LEVELS = {"DEBUG": 0, "INFO": 1, "WARN": 2, "ERROR": 3, "FATAL": 4}
+_LOG_MIN_LEVEL = [0]   # mutable via Log.setLevel
+_LOG_FILE     = [None] # mutable via Log.configure
+_LOG_FORMAT   = ["[{level}] {ts} — {msg}"]  # format par défaut
+
+def _log_ts():
+    """Retourne le timestamp courant formaté."""
+    return _time.strftime("%Y-%m-%d %H:%M:%S")
+
+def _log_fmt(level, msg):
+    """Applique le format de log configuré."""
+    return _LOG_FORMAT[0].format(level=level, ts=_log_ts(), msg=msg)
+
+def _log_write(level, msg, color_fn=None):
+    """Noyau : filtre par niveau, affiche avec couleur, écrit dans fichier si configuré."""
+    if _LOG_LEVELS.get(level, 0) < _LOG_MIN_LEVEL[0]:
+        return None
+    line = _log_fmt(level, str(msg))
+    # Sortie console (avec couleur si colorama est disponible)
+    if color_fn and _Fore:
+        print(color_fn(line))
+    else:
+        print(line)
+    # Écriture dans le fichier de log si configuré
+    if _LOG_FILE[0]:
+        try:
+            with open(_LOG_FILE[0], "a", encoding="utf-8") as f:
+                f.write(_re.sub(r'\x1b\[[0-9;]*m', '', line) + "\n")
+        except OSError:
+            pass
+    return None
+
+def _log_to_file(path, level, msg):
+    """Écrit un message de log dans un fichier sans couleur ANSI."""
+    line = _log_fmt(level.upper(), str(msg))
+    clean = _re.sub(r'\x1b\[[0-9;]*m', '', line)
+    with open(str(path), "a", encoding="utf-8") as f:
+        f.write(clean + "\n")
+    return None
+
+def _log_set_level(level):
+    """Définit le niveau minimum de journalisation."""
+    lvl = str(level).upper()
+    if lvl not in _LOG_LEVELS:
+        raise ValueError(f"Niveau de log invalide : {level}. Valeurs acceptées : DEBUG, INFO, WARN, ERROR, FATAL")
+    _LOG_MIN_LEVEL[0] = _LOG_LEVELS[lvl]
+    return None
+
+def _log_configure(file=None, level=None, fmt=None):
+    """Configure globalement le logger (fichier, niveau, format)."""
+    if file is not None:
+        _LOG_FILE[0] = str(file)
+    if level is not None:
+        _log_set_level(level)
+    if fmt is not None:
+        _LOG_FORMAT[0] = str(fmt)
+    return None
+
+def _log_clear(path=None):
+    """Vide le fichier de log (celui configuré ou un chemin explicite)."""
+    target = str(path) if path else _LOG_FILE[0]
+    if target:
+        with open(target, "w", encoding="utf-8") as f:
+            f.write("")
+    return None
+
+
 NativeFuncs = {
     "Math" : {
         # --- Constantes ---
@@ -2302,6 +2376,48 @@ NativeFuncs = {
         "query":       lambda url: _urlparse.urlparse(str(url)).query,
         # Extrait le fragment (ex. "https://example.com/p#section" → "section")
         "fragment":    lambda url: _urlparse.urlparse(str(url)).fragment,
+    },
+
+    # ------------------------------------------------------------------
+    # Namespace Log — journalisation structurée (stdlib uniquement)
+    # Niveaux : DEBUG < INFO < WARN < ERROR < FATAL
+    # Chaque message est horodaté. La sortie console est colorée si
+    # colorama est disponible (déjà inclus dans les dépendances Oktopios).
+    # Log.configure() permet d'activer la persistance dans un fichier.
+    # ------------------------------------------------------------------
+    "Log": {
+        # --- Niveaux de log ---
+        # DEBUG — diagnostics de développement (cyan)
+        "debug": lambda msg: _log_write("DEBUG", msg,
+                     color_fn=(lambda s: _Fore.CYAN    + s + _Style.RESET_ALL) if _Fore else None),
+        # INFO  — informations générales (vert)
+        "info":  lambda msg: _log_write("INFO",  msg,
+                     color_fn=(lambda s: _Fore.GREEN   + s + _Style.RESET_ALL) if _Fore else None),
+        # WARN  — avertissements non bloquants (jaune)
+        "warn":  lambda msg: _log_write("WARN",  msg,
+                     color_fn=(lambda s: _Fore.YELLOW  + s + _Style.RESET_ALL) if _Fore else None),
+        # ERROR — erreurs récupérables (rouge)
+        "error": lambda msg: _log_write("ERROR", msg,
+                     color_fn=(lambda s: _Fore.RED     + s + _Style.RESET_ALL) if _Fore else None),
+        # FATAL — erreurs critiques, arrêt probable (rouge vif)
+        "fatal": lambda msg: _log_write("FATAL", msg,
+                     color_fn=(lambda s: _Fore.LIGHTRED_EX + s + _Style.RESET_ALL) if _Fore else None),
+        # --- Persistance dans un fichier (sans codes ANSI) ---
+        # Écrit un message dans un fichier de log (mode ajout)
+        "toFile":      lambda path, level, msg: _log_to_file(path, level, msg),
+        # --- Configuration globale ---
+        # Définit le niveau minimum : seuls les messages >= ce niveau sont affichés
+        "setLevel":    lambda level: _log_set_level(level),
+        # Configure en une fois : fichier, niveau, format
+        # format accepte : {level}, {ts}, {msg}  (ex. "[{level}] {ts} — {msg}")
+        "configure":   lambda file=None, level=None, fmt=None: _log_configure(file, level, fmt),
+        # Vide le fichier de log configuré (ou un chemin explicite)
+        "clear":       lambda path=None: _log_clear(path),
+        # --- Utilitaires ---
+        # Retourne le timestamp courant formaté
+        "timestamp":   lambda *a: _log_ts(),
+        # Liste les niveaux disponibles
+        "levels":      lambda *a: _OktopiosList(["DEBUG", "INFO", "WARN", "ERROR", "FATAL"]),
     },
 
 }
