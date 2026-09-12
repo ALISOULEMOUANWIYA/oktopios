@@ -625,3 +625,24 @@ def test_list_arg_to_function(capsys):
         "print(somme([1, 2, 3]))\n"
     )
     assert out(code, capsys) == "6"
+
+
+def test_reserved_words_as_member_names(capsys):
+    # Mots réservés (count, from...) utilisables comme noms de champ / méthode,
+    # accessibles via '.' — indispensable pour une API ORM/SQL naturelle.
+    code = (
+        "class Q {\n"
+        "    var count: int\n"
+        "    var cols: string\n"
+        "    fun __construct() { this.count = 0 }\n"
+        "    fun from(t: string): Q {\n"
+        "        this.cols = t\n"
+        "        this.count = this.count + 1\n"
+        "        return this\n"
+        "    }\n"
+        "}\n"
+        "var q = new Q()\n"
+        "q.from(\"users\").from(\"more\")\n"
+        "print(q.count + \" \" + q.cols)\n"
+    )
+    assert out(code, capsys) == "2 more"

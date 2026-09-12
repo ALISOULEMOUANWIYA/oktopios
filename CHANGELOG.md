@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.1] — Mots réservés utilisables comme noms (ergonomie ORM/SQL)
+
+### Changé
+
+- Les **mots réservés** (`from`, `count`, `cols`, `rows`, `new`, `by`…) peuvent
+  désormais servir de **noms de champ, de méthode, de paramètre** et de
+  **membre** (après `.`). On peut donc écrire une API ORM/SQL naturelle :
+  `fun from(...)`, un champ `count`, `query.from("users").count`, etc.
+  (mots-clés contextuels : autorisés uniquement dans ces positions non ambiguës).
+
+### Limite
+
+- La **lecture nue** d'un mot réservé dans une expression reste interdite
+  (`return from + count`) : ces mots gardent leur rôle de mots-clés dans les
+  boucles spéciales (`spiral … from`, `sectors … count`, `… by …`). Les champs
+  concernés s'utilisent via `this.count` / accès membre / réflexion — ce que
+  fait l'ORM.
+
+---
+
 ## [0.4.0] — Réflexion & fondations ORM
 
 Cette version dote Oktopios des briques nécessaires pour écrire un **ORM

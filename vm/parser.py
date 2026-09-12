@@ -4,6 +4,13 @@ from . ast_nodes import *
 from  colorama import Fore, Style
 from . parse_error import ParseError
 from . symbole_table import SymbolTable
+from . lexer import KEYWORDS as _KEYWORDS
+
+# Types de tokens correspondant à des mots réservés. On les autorise comme
+# NOMS (membres après '.', méthodes, champs, paramètres) via consume_name(),
+# afin de pouvoir employer des mots comme `from`, `count`, `cols`, `new`,
+# `by`... comme identifiants — utile pour un ORM (colonnes/tables aux noms SQL).
+_KEYWORD_TOKEN_TYPES = set(_KEYWORDS.values())
 
 # Dans parser.py (ou accessible globalement)
 #INJECTED_MODULES = set()  # ex: {"math", "io", "file"}
@@ -76,7 +83,7 @@ class Parser:
         if self.check(TokenType.ID) or self.check(TokenType.MODE):
             id = self.advance()
         else:
-            id = self.consume(TokenType.ID, Fore.CYAN + "Nom de variable attendu" + Style.RESET_ALL)
+            id = self.consume_name(Fore.CYAN + "Nom de variable attendu" + Style.RESET_ALL)
         name = id.value
 
         # --- Déclaration multiple, forme A : "x, y, a : int = 1, 2, 3" ---
@@ -140,7 +147,7 @@ class Parser:
         segment_values = [first_value if first_has_value else None]
 
         while self.match(TokenType.COMMA):
-            seg_name_tok = self.consume(TokenType.ID, "Nom de variable attendu après ','")
+            seg_name_tok = self.consume_name("Nom de variable attendu après ','")
             segment_names.append(seg_name_tok.value)
             if self.match(TokenType.EQ):
                 segment_values.append(self.expression())
@@ -1339,7 +1346,7 @@ class Parser:
     def parse_postfix(self, expr):
         while True:
             if self.match(TokenType.DOT):
-                name_token = self.consume(TokenType.ID, "Nom de membre attendu après '.'")
+                name_token = self.consume_name("Nom de membre attendu après '.'")
                 member_name = name_token.value
                 if self.match(TokenType.LPAREN):  # Appel de méthode
                     args = []
@@ -1516,7 +1523,7 @@ class Parser:
                     is_mutable = True
                 elif self.match(TokenType.VAL):
                     is_mutable = False
-                param_name = self.consume(TokenType.ID, "Nom de paramètre attendu").value
+                param_name = self.consume_name("Nom de paramètre attendu").value
                 self.consume(TokenType.COLON, "':' attendu après le nom du paramètre")
                 param_type = self.consume_type()
                 default_value = None
@@ -1580,6 +1587,17 @@ class Parser:
         if self.check(type_):
             return self.advance()
         self.error(self.peek(), message)
+
+    def consume_name(self, message):
+        """Consomme un NOM : un identifiant, OU un mot réservé réutilisé comme
+        nom (from, count, cols, new, by...). À n'employer que dans des positions
+        non ambiguës (après '.', nom de méthode/champ/paramètre) où seul un nom
+        est attendu — ergonomie ORM/SQL. Le token renvoyé garde son `.value`
+        (le mot d'origine)."""
+        tok = self.peek()
+        if not self.is_at_end() and (tok.type == TokenType.ID or tok.type in _KEYWORD_TOKEN_TYPES):
+            return self.advance()
+        self.error(tok, message)
 
     def check(self, type_):
         if self.is_at_end():
@@ -2028,7 +2046,7 @@ class Parser:
         elif self.check(TokenType.DESTRUCT):
             name_token = self.consume(TokenType.DESTRUCT, Fore.CYAN + "Nom de fonction attendu" + Style.RESET_ALL)
         else:
-            name_token = self.consume(TokenType.ID, Fore.CYAN + "Nom de fonction attendu" + Style.RESET_ALL)
+            name_token = self.consume_name(Fore.CYAN + "Nom de fonction attendu" + Style.RESET_ALL)
         name = name_token.value
 
         self.consume(TokenType.LPAREN, Fore.CYAN + "'(' attendu après le nom de la fonction" + Style.RESET_ALL)
@@ -2043,7 +2061,7 @@ class Parser:
                 elif self.match(TokenType.VAL):
                     is_mutable = False
 
-                param_name = self.consume(TokenType.ID,
+                param_name = self.consume_name(
                                           Fore.CYAN + "Nom de paramètre attendu" + Style.RESET_ALL).value
                 self.consume(TokenType.COLON, Fore.CYAN + "':' attendu après le nom du paramètre" + Style.RESET_ALL)
                 param_type = self.consume_type()
@@ -2166,7 +2184,7 @@ class Parser:
 
         if not self.check(TokenType.RPAREN):
             while True:
-                name = self.consume(TokenType.ID, "Nom de paramètre attendu").value
+                name = self.consume_name("Nom de paramètre attendu").value
                 param_type = None
                 if self.match(TokenType.COLON):
                     param_type = self.consume_type()
