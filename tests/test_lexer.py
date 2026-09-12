@@ -191,4 +191,4 @@ def test_eof_present():
 
 def test_caractere_inattendu():
     with pytest.raises((SyntaxError, Exception)):
-        tok("var x = @")
+        tok("var x = ~")

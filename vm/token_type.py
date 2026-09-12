@@ -15,6 +15,7 @@ class TokenType(Enum):
     STRING = auto()
     BOOL = auto()
     VOID = auto()
+    AT = auto()   # '@' — décorateurs / annotations (@Entity, @Column...)
 
     IN = auto()
     NOT_IN = auto()

@@ -1,0 +1,86 @@
+// =====================================================================
+//  Oktopios — ORM piloté par décorateurs (0.5.0)
+//  Le mapping objet <-> table est déclaré par annotations :
+//    @Entity("table")   sur la classe   -> nom de la table
+//    @Column("colonne") sur un champ    -> nom de la colonne
+//    @Id                sur un champ    -> clé primaire
+//  Lues à l'exécution via la réflexion (Type.annotation / fieldAnnotation).
+// =====================================================================
+inject Type
+inject DataImport
+
+@Entity("clients")
+class Client {
+    @Id
+    var id: int
+    @Column("nom_complet")
+    var name: string
+    var ville: string
+
+    fun __construct(name: string, ville: string) {
+        this.name = name
+        this.ville = ville
+    }
+    fun show(): string {
+        return "#" + this.id + " " + this.name + " (" + this.ville + ")"
+    }
+}
+
+class ORM {
+    var db: string
+    fun __construct(db: string) { this.db = db }
+
+    // Nom de table : @Entity(...) sinon le nom de la classe
+    fun tableOf(entity: any): string {
+        var ann = Type.annotation(entity, "Entity")
+        if (ann != null) { return ann[0] }
+        return Type.className(entity)
+    }
+    // Nom de colonne : @Column(...) sinon le nom du champ
+    fun colOf(entity: any, champ: string): string {
+        var c = Type.fieldAnnotation(entity, champ, "Column")
+        if (c != null) { return c[0] }
+        return champ
+    }
+    // Nom du champ clé primaire (celui portant @Id), sinon "id"
+    fun idField(entity: any): string {
+        for (f in Type.fields(entity)) {
+            if (Type.fieldAnnotation(entity, f, "Id") != null) { return f }
+        }
+        return "id"
+    }
+
+    fun save(entity: any) {
+        var table = this.tableOf(entity)
+        var colonnes = ""
+        var marques = ""
+        var valeurs = []
+        for (f in Type.fields(entity)) {
+            if (colonnes != "") {
+                colonnes = colonnes + ", "
+                marques = marques + ", "
+            }
+            colonnes = colonnes + this.colOf(entity, f)
+            marques = marques + "?"
+            valeurs = valeurs + [Type.get(entity, f)]
+        }
+        var sql = "INSERT INTO " + table + " (" + colonnes + ") VALUES (" + marques + ")"
+        return DataImport.execSQL(this.db, sql, valeurs)
+    }
+}
+
+// --- Démonstration ---
+var orm = new ORM("clients.db")
+DataImport.execSQL("clients.db", "DROP TABLE IF EXISTS clients", [])
+DataImport.execSQL("clients.db", "CREATE TABLE clients (id INTEGER, nom_complet TEXT, ville TEXT)", [])
+
+var c = new Client("Awa Diop", "Dakar")
+Type.set(c, "id", 1)
+
+print("Table (via @Entity)   : " + orm.tableOf(c))
+print("Colonne name (@Column): " + orm.colOf(c, "name"))
+print("Clé primaire (@Id)    : " + orm.idField(c))
+
+orm.save(c)
+print("Contenu en base :")
+print(DataImport.execSQL("clients.db", "SELECT id, nom_complet, ville FROM clients", []))

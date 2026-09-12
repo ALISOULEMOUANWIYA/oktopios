@@ -663,6 +663,44 @@ def _obj_to_map(x):
     return _OktopiosMap({k: f.value for k, f in x.fields.items()})
 
 
+# --- Annotations / décorateurs (métadonnées de classe et de champ) ---
+
+def _obj_annotations(x):
+    """Map { nomDecorateur: [args] } des décorateurs de la classe de x."""
+    if not _is_okobject(x):
+        raise Exception("[Erreur] Type.annotations attend un objet (instance de classe)")
+    ann = getattr(getattr(x, "klass", None), "annotations", None) or {}
+    return _OktopiosMap({k: _OktopiosList(list(v)) for k, v in ann.items()})
+
+
+def _obj_annotation(x, name):
+    """Args d'un décorateur de classe (ex. Type.annotation(u, "Entity") -> ["users"]),
+    ou null s'il est absent."""
+    if not _is_okobject(x):
+        raise Exception("[Erreur] Type.annotation attend un objet (instance de classe)")
+    ann = getattr(getattr(x, "klass", None), "annotations", None) or {}
+    key = str(name)
+    return _OktopiosList(list(ann[key])) if key in ann else None
+
+
+def _obj_has_annotation(x, name):
+    if not _is_okobject(x):
+        return False
+    ann = getattr(getattr(x, "klass", None), "annotations", None) or {}
+    return str(name) in ann
+
+
+def _obj_field_annotation(x, field, name):
+    """Args d'un décorateur posé sur un champ (ex.
+    Type.fieldAnnotation(u, "id", "Id")), ou null."""
+    if not _is_okobject(x):
+        raise Exception("[Erreur] Type.fieldAnnotation attend un objet (instance de classe)")
+    fa = getattr(getattr(x, "klass", None), "field_annotations", None) or {}
+    field_ann = fa.get(str(field), {})
+    key = str(name)
+    return _OktopiosList(list(field_ann[key])) if key in field_ann else None
+
+
 
 # ---------------------------------------------------------------------------
 # Regex helpers
@@ -1943,6 +1981,11 @@ NativeFuncs = {
         "set":        lambda x, name, value: _obj_set(x, name, value),
         "has":        lambda x, name: _obj_has(x, name),
         "toMap":      lambda x: _obj_to_map(x),
+        # --- Annotations / décorateurs (@Entity, @Id, @Column...) ---
+        "annotations":     lambda x: _obj_annotations(x),
+        "annotation":      lambda x, name: _obj_annotation(x, name),
+        "hasAnnotation":   lambda x, name: _obj_has_annotation(x, name),
+        "fieldAnnotation": lambda x, field, name: _obj_field_annotation(x, field, name),
     },
     # ---------    # -------------------------------------------------------------------
     # List — utilitaires fonctionnels sur les listes

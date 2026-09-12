@@ -158,6 +158,7 @@ TOK_REGEX = re.compile(r'''
   | (?P<STRING>"[^"]*")
   | (?P<CHAR>'[^']*')
   | (?P<ID>[a-zA-Z_][a-zA-Z_0-9]*)
+  | (?P<AT>@)
   | (?P<QUESTION>\?)
   | (?P<COLON>:)
   | (?P<SEMICOLON>;)

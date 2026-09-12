@@ -46,35 +46,55 @@ class Parser:
 
     def declaration(self):
         try:
+            # Décorateurs / annotations éventuels (@Entity("users"), @Id...)
+            decorators = self.parse_decorators() if self.check(TokenType.AT) else []
             if self.match(TokenType.TENT):
-                return self.tent_declaration()
+                node = self.tent_declaration()
             elif self.match(TokenType.TEN):
-                return self.ten_declaration()
+                node = self.ten_declaration()
             elif self.match(TokenType.INTENTION):
-                return self.intention_statement()
+                node = self.intention_statement()
             elif self.match(TokenType.TENT_RANDOM):
-                return self.tent_random_statement()
+                node = self.tent_random_statement()
             elif self.match(TokenType.ABSTRACT):
-                return self.parse_class_decl(type_class=TokenType.ABSTRACT)
+                node = self.parse_class_decl(type_class=TokenType.ABSTRACT)
             elif self.match(TokenType.CLASS):
-                clss = self.parse_class_decl(type_class=TokenType.CLASS)
-                #print("Debug : dans declaration TokenType.CLASS ", clss)
-                return clss
+                node = self.parse_class_decl(type_class=TokenType.CLASS)
             elif self.match(TokenType.INTERFACE):
-                inter = self.parse_interface_decl()
-                #print("Debug : dans declaration TokenType.INTERFACE ", inter)
-                return inter
+                node = self.parse_interface_decl()
             elif self.match(TokenType.ENUM):
-                enmm = self.parse_enum_decl()
-                #print("Debug : dans declaration TokenType.ENUM ", enmm)
-                return enmm
+                node = self.parse_enum_decl()
             elif self.match(TokenType.NEURON_LOOP):
-                return self.parse_neuron_loop_decl()
+                node = self.parse_neuron_loop_decl()
             else:
-                return self.statement()
+                node = self.statement()
+            if decorators and node is not None:
+                try:
+                    node.decorators = decorators
+                except Exception:
+                    pass
+            return node
         except ParseError as error:
             self.synchronize()
-            return None
+
+    def parse_decorators(self):
+        """Parse une suite de décorateurs `@Nom` ou `@Nom(arg, ...)`.
+        Renvoie une liste de tuples (nom, [expressions d'arguments]) — modèle
+        « annotation » : les décorateurs attachent des métadonnées, lisibles par
+        réflexion (Type.annotation/annotations), sans invoquer de fonction."""
+        decos = []
+        while self.check(TokenType.AT):
+            self.advance()  # consomme '@'
+            name_tok = self.consume_name(Fore.CYAN + "Nom de décorateur attendu après '@'" + Style.RESET_ALL)
+            args = []
+            if self.match(TokenType.LPAREN):
+                if not self.check(TokenType.RPAREN):
+                    args.append(self.expression())
+                    while self.match(TokenType.COMMA):
+                        args.append(self.expression())
+                self.consume(TokenType.RPAREN, Fore.CYAN + "')' attendu après les arguments du décorateur" + Style.RESET_ALL)
+            decos.append((name_tok.value, args))
+        return decos
 
     # --------------------------
     # Déclaration de variable
@@ -301,6 +321,10 @@ class Parser:
         members = []
         while not self.check(TokenType.RBRACE) and not self.is_at_end():
 
+            # Décorateurs de membre (@Id, @Column("nom")...) — attachés au membre suivant
+            member_decorators = self.parse_decorators() if self.check(TokenType.AT) else []
+            members_before = len(members)
+
             # 💡 Réduction des répétitions pour l'accès (utilise la fonction match() qui avance)
             access_modifier = self.match(TokenType.PRIVATE, TokenType.PUBLIC, TokenType.PROTECTED, TokenType.GLOBAL)
             access_modifier = self.previous().value if access_modifier else "public"
@@ -395,6 +419,12 @@ class Parser:
                 self.class_loaded.add_method(class_name, func_stmt)
             else:
                 raise self.error(self.peek(), "Déclaration invalide dans une classe")
+
+            if member_decorators and len(members) > members_before:
+                try:
+                    members[-1].decorators = member_decorators
+                except Exception:
+                    pass
 
 
         self.consume(TokenType.RBRACE, "Attendu '}' pour fermer le corps de la classe")

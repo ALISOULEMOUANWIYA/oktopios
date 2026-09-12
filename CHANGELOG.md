@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.5.0] — Décorateurs / annotations (ORM déclaratif complet)
+
+Dernier maillon pour un ORM complet : les **décorateurs**. Modèle « annotation »
+(façon Java) — ils attachent des métadonnées lues par réflexion, sans invoquer
+de fonction.
+
+### Ajouté
+
+- **Syntaxe décorateur** `@Nom` et `@Nom(arg, ...)` :
+  - sur une **classe** : `@Entity("users")`
+  - sur un **champ** : `@Id`, `@Column("nom_colonne")`
+- **Lecture par réflexion** (namespace `Type`) :
+  - `Type.annotations(x)` — map `{ décorateur: [args] }` de la classe
+  - `Type.annotation(x, "Entity")` — args d'un décorateur de classe (ou `null`)
+  - `Type.hasAnnotation(x, "Entity")` — présence
+  - `Type.fieldAnnotation(x, "champ", "Column")` — args d'un décorateur de champ (ou `null`)
+- Token `@` ajouté au lexer.
+
+### Exemple
+
+`docs/examples/orm_decorators.okp` — ORM **déclaratif** : la table vient de
+`@Entity`, les colonnes de `@Column`, la clé primaire de `@Id`, le tout lu à
+l'exécution par réflexion.
+
+### Note
+
+Les décorateurs sont des **annotations** (métadonnées), pas des décorateurs-
+fonctions : ils ne remplacent pas la classe/méthode décorée, ils l'étiquettent.
+
+---
+
 ## [0.4.1] — Mots réservés utilisables comme noms (ergonomie ORM/SQL)
 
 ### Changé

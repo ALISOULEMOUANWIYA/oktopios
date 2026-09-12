@@ -700,6 +700,32 @@ SQL : `DataImport.execSQL(db, sql, params)` (SELECT/INSERT/UPDATE/DELETE).
 Un **mini-ORM de référence** complet (`save`/`all`/`findBy`/`remove` génériques)
 se trouve dans [`docs/examples/orm.okp`](docs/examples/orm.okp).
 
+### Décorateurs / annotations 🐙
+
+Depuis la 0.5.0, on peut **déclarer le mapping** par décorateurs (`@Entity`,
+`@Id`, `@Column`) — de simples métadonnées lues par réflexion :
+
+```okp
+inject Type
+
+@Entity("users")
+class User {
+    @Id
+    var id: int
+    @Column("full_name")
+    var name: string
+    fun __construct(name: string) { this.name = name }
+}
+
+var u = new User("Awa")
+print(Type.annotation(u, "Entity"))            // ["users"]
+print(Type.fieldAnnotation(u, "name", "Column")) // ["full_name"]
+```
+
+Réflexion des annotations : `Type.annotations`, `Type.annotation`,
+`Type.hasAnnotation`, `Type.fieldAnnotation`. ORM déclaratif complet dans
+[`docs/examples/orm_decorators.okp`](docs/examples/orm_decorators.okp).
+
 ## État du projet 🐙
 
 Oktopios est encore expérimental. Certaines fonctionnalités sont stables, d'autres sont en cours de conception ou d'intégration. Le langage évolue rapidement autour de trois axes :

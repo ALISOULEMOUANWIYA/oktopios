@@ -194,6 +194,7 @@ class Interpreter:
         for stmt in program.body:
             class_stmt = stmt.class_decl if isinstance(stmt, (TentClass, TenClass)) else stmt
             if isinstance(class_stmt, ClassDeclaration):
+                self._attach_annotations(class_stmt)
                 if getattr(class_stmt, "is_abstract", False):
                     with self._shared_lock:
                         self.abstract_classes[class_stmt.name] = class_stmt
@@ -290,6 +291,30 @@ class Interpreter:
         with self._shared_lock:
             self.tentacles.append(instance)
         return instance
+
+    def _eval_decorators(self, decorators):
+        """[(nom, [expr_args]), ...] -> { nom: [valeurs évaluées] }."""
+        result = {}
+        if not decorators:
+            return result
+        for name, arg_exprs in decorators:
+            result[name] = [self.evaluate(a) for a in (arg_exprs or [])]
+        return result
+
+    def _attach_annotations(self, class_decl):
+        """Évalue les décorateurs (classe + champs) et les stocke sur la classe,
+        pour lecture par réflexion (Type.annotation / Type.fieldAnnotation)."""
+        if getattr(class_decl, "_annotations_done", False):
+            return
+        class_decl.annotations = self._eval_decorators(getattr(class_decl, "decorators", None))
+        field_ann = {}
+        for m in getattr(class_decl, "members", []) or []:
+            decos = getattr(m, "decorators", None)
+            name = getattr(m, "name", None)
+            if decos and name:
+                field_ann[name] = self._eval_decorators(decos)
+        class_decl.field_annotations = field_ann
+        class_decl._annotations_done = True
 
     def _reflect_new(self, class_name, args=None):
         """Type.new(nom, ...) : instancie une classe par son nom.

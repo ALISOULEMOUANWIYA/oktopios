@@ -646,3 +646,36 @@ def test_reserved_words_as_member_names(capsys):
         "print(q.count + \" \" + q.cols)\n"
     )
     assert out(code, capsys) == "2 more"
+
+
+def test_class_decorator(capsys):
+    code = (
+        "inject Type\n"
+        "@Entity(\"users\")\n"
+        "class U {\n"
+        "    var id: int\n"
+        "    fun __construct() { this.id = 0 }\n"
+        "}\n"
+        "var u = new U()\n"
+        "print(Type.annotation(u, \"Entity\"))\n"
+        "print(Type.hasAnnotation(u, \"Entity\"))\n"
+    )
+    assert out(code, capsys) == "['users']\ntrue"
+
+
+def test_field_decorator(capsys):
+    code = (
+        "inject Type\n"
+        "@Entity(\"t\")\n"
+        "class M {\n"
+        "    @Id\n"
+        "    var id: int\n"
+        "    @Column(\"full\")\n"
+        "    var name: string\n"
+        "    fun __construct() { this.id = 0 }\n"
+        "}\n"
+        "var m = new M()\n"
+        "print(Type.fieldAnnotation(m, \"id\", \"Id\"))\n"
+        "print(Type.fieldAnnotation(m, \"name\", \"Column\"))\n"
+    )
+    assert out(code, capsys) == "[]\n['full']"
