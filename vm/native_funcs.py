@@ -690,6 +690,22 @@ def _obj_has_annotation(x, name):
     return str(name) in ann
 
 
+def _obj_field_type(x, name):
+    """Type déclaré d'un champ (ex. "int", "string", "float"), ou null."""
+    if not _is_okobject(x):
+        raise Exception("[Erreur] Type.fieldType attend un objet (instance de classe)")
+    ft = getattr(getattr(x, "klass", None), "field_types", None) or {}
+    return ft.get(str(name))
+
+
+def _obj_field_types(x):
+    """Map { champ: type déclaré } — utile pour générer un schéma SQL."""
+    if not _is_okobject(x):
+        raise Exception("[Erreur] Type.fieldTypes attend un objet (instance de classe)")
+    ft = getattr(getattr(x, "klass", None), "field_types", None) or {}
+    return _OktopiosMap(dict(ft))
+
+
 def _obj_field_annotation(x, field, name):
     """Args d'un décorateur posé sur un champ (ex.
     Type.fieldAnnotation(u, "id", "Id")), ou null."""
@@ -1986,6 +2002,8 @@ NativeFuncs = {
         "annotation":      lambda x, name: _obj_annotation(x, name),
         "hasAnnotation":   lambda x, name: _obj_has_annotation(x, name),
         "fieldAnnotation": lambda x, field, name: _obj_field_annotation(x, field, name),
+        "fieldType":       lambda x, name: _obj_field_type(x, name),
+        "fieldTypes":      lambda x: _obj_field_types(x),
     },
     # ---------    # -------------------------------------------------------------------
     # List — utilitaires fonctionnels sur les listes

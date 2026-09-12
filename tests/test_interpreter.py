@@ -679,3 +679,20 @@ def test_field_decorator(capsys):
         "print(Type.fieldAnnotation(m, \"name\", \"Column\"))\n"
     )
     assert out(code, capsys) == "[]\n['full']"
+
+
+def test_field_types(capsys):
+    # Types déclarés des champs (pour les migrations ORM).
+    code = (
+        "inject Type\n"
+        "class M {\n"
+        "    var id: int\n"
+        "    var name: string\n"
+        "    var price: float\n"
+        "    fun __construct() { this.id = 0 }\n"
+        "}\n"
+        "var m = new M()\n"
+        "print(Type.fieldType(m, \"price\"))\n"
+        "print(Type.fieldTypes(m))\n"
+    )
+    assert out(code, capsys) == "float\n{'id': 'int', 'name': 'string', 'price': 'float'}"

@@ -308,12 +308,19 @@ class Interpreter:
             return
         class_decl.annotations = self._eval_decorators(getattr(class_decl, "decorators", None))
         field_ann = {}
+        field_types = {}
         for m in getattr(class_decl, "members", []) or []:
-            decos = getattr(m, "decorators", None)
             name = getattr(m, "name", None)
+            decos = getattr(m, "decorators", None)
             if decos and name:
                 field_ann[name] = self._eval_decorators(decos)
+            # Type déclaré des champs (VarDecl) — pour les migrations ORM.
+            if name and type(m).__name__ == "VarDecl":
+                ty = getattr(m, "type_", None)
+                if ty is not None:
+                    field_types[name] = ty
         class_decl.field_annotations = field_ann
+        class_decl.field_types = field_types
         class_decl._annotations_done = True
 
     def _reflect_new(self, class_name, args=None):

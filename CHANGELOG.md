@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.0] — Réflexion des types de champs (support des migrations ORM)
+
+### Ajouté
+
+- `Type.fieldType(x, "champ")` — type déclaré d'un champ (`"int"`, `"string"`,
+  `"float"`, `"bool"`…), ou `null`.
+- `Type.fieldTypes(x)` — map `{ champ: type déclaré }`.
+
+Ces primitives permettent de **générer un schéma SQL** depuis un modèle décoré
+(migrations : `int → INTEGER`, `string → TEXT`, `float → REAL`…). Elles sont la
+dernière brique du langage requise par le projet **oktopios-framework** (couche
+ORM avec migrations, relations et query-builder, écrite en Oktopios).
+
+---
+
 ## [0.5.0] — Décorateurs / annotations (ORM déclaratif complet)
 
 Dernier maillon pour un ORM complet : les **décorateurs**. Modèle « annotation »
