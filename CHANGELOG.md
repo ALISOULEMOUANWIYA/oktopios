@@ -1,5 +1,89 @@
 # Changelog
 
+## [0.8.0] — Namespace `Template` — gabarits de chaînes natifs
+
+### Ajouté
+
+**Namespace `Template` — 7 fonctions de rendu de gabarits (stdlib uniquement, aucune dépendance)**
+
+Toutes les fonctions utilisent uniquement la bibliothèque standard Python (`re`) —
+aucun `pip install` supplémentaire n'est requis.
+
+La syntaxe des gabarits est inspirée des moteurs courants (Mustache, Twig, Django) :
+`{{variable}}` pour substituer une valeur, `{{variable|valeur_par_défaut}}` pour définir
+un repli quand la variable est absente.
+
+**Rendu en mémoire**
+- `Template.render(template, vars)` — rend un gabarit (string) en remplaçant `{{var}}` / `{{var|défaut}}` par les valeurs du map `vars` ; variables manquantes → chaîne vide
+- `Template.partial(template, vars)` — rendu partiel : les variables manquantes restent sous la forme `{{var}}` (utile pour les gabarits à plusieurs passes)
+
+**Lecture/écriture de fichiers**
+- `Template.fromFile(path, vars)` — charge un fichier gabarit et le rend avec `vars`
+- `Template.toFile(template, path, vars)` — rend un gabarit (string) et écrit le résultat dans `path`
+- `Template.fileToFile(tplPath, outPath, vars)` — charge un fichier gabarit, rend, et écrit dans un fichier de sortie
+
+**Inspection et utilitaires**
+- `Template.vars(template)` — retourne la liste ordonnée (sans doublons) des variables présentes dans le gabarit
+- `Template.strip(template)` — supprime tous les marqueurs `{{…}}` du gabarit (retourne le texte nu)
+- `Template.escape(s)` — échappe `{{` et `}}` pour qu'ils ne soient pas interprétés comme marqueurs
+
+```okp
+inject Template
+
+// --- Rendu simple ---
+var tpl = "Bonjour {{prenom}} {{nom}} !"
+var vars = { prenom: "Ali", nom: "Mouanwiya" }
+print(Template.render(tpl, vars))
+// Bonjour Ali Mouanwiya !
+
+// --- Valeur par défaut ---
+var tpl2 = "Langue : {{lang|fr}}"
+print(Template.render(tpl2, {}))     // Langue : fr
+print(Template.render(tpl2, { lang: "en" }))  // Langue : en
+
+// --- Gabarit HTML (génération de mail) ---
+var html = "<h1>Bienvenue {{prenom}}</h1><p>Votre code : <b>{{code}}</b></p>"
+var contenu = Template.render(html, { prenom: "Alice", code: "OKTO-2026" })
+File.write("email.html", contenu)
+
+// --- Depuis un fichier gabarit ---
+// fichier rapport.tpl.txt :
+//   Rapport du {{date}}
+//   Auteur : {{auteur}}
+//   Score  : {{score|N/A}}
+var rapport = Template.fromFile("rapport.tpl.txt", { date: "2026-09-13", auteur: "Bob" })
+print(rapport)
+// Rapport du 2026-09-13
+// Auteur : Bob
+// Score  : N/A   ← valeur par défaut
+
+// --- Rendu partiel (multi-passes) ---
+var tpl3 = "{{salut}}, {{prenom}} ! Bienvenue dans {{app}}."
+var passe1 = Template.partial(tpl3, { salut: "Bonjour" })
+// passe1 = "Bonjour, {{prenom}} ! Bienvenue dans {{app}}."
+var passe2 = Template.render(passe1, { prenom: "Eve", app: "Oktopios" })
+print(passe2)   // Bonjour, Eve ! Bienvenue dans Oktopios.
+
+// --- Inspection ---
+var vars_list = Template.vars("{{nom}} a {{age}} ans ({{ville|Paris}})")
+print(vars_list)   // [nom, age, ville]
+
+// --- Nettoyage ---
+print(Template.strip("{{titre}} — {{sous_titre}}"))   // " — "
+
+// --- Écriture directe dans un fichier ---
+Template.toFile("Bonjour {{prenom}} !", "sortie.txt", { prenom: "Claude" })
+
+// --- Gabarit fichier → fichier ---
+Template.fileToFile("facture.tpl.html", "facture_client.html", {
+    client:  "Acme Corp",
+    montant: "1 234,56 €",
+    date:    "2026-09-13"
+})
+```
+
+---
+
 ## [0.7.0] — Modules installables (paquets pip découvrables)
 
 ### Ajouté

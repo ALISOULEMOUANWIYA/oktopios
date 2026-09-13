@@ -707,3 +707,11 @@ def test_oktopios_path_search(monkeypatch, tmp_path):
     assert str(tmp_path) in interp.module_search_paths
     import sys as _sys
     assert any(p in interp.module_search_paths for p in _sys.path if p)
+
+
+def test_template_render(capsys):
+    code = (
+        "inject Template\n"
+        'print(Template.render("Bonjour {{nom}}, {{role|invite}} !", {"nom": "Awa"}))\n'
+    )
+    assert out(code, capsys) == "Bonjour Awa, invite !"

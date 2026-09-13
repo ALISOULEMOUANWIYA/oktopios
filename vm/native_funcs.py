@@ -1770,6 +1770,78 @@ def _log_clear(path=None):
     return None
 
 
+# ---------------------------------------------------------------------------
+# Template namespace — rendu de gabarits de chaînes avec substitution de
+# variables.  Syntaxe : {{variable}} ou {{variable|valeur_par_défaut}}.
+# Aucune dépendance externe : stdlib uniquement.
+# ---------------------------------------------------------------------------
+
+_TEMPLATE_RE = _re.compile(r'\{\{\s*(\w+)(?:\s*\|\s*([^}]*))?\s*\}\}')
+
+def _template_render(template, variables, partial=False):
+    """Remplace {{var}} / {{var|défaut}} dans template par les valeurs de variables."""
+    def _sub(m):
+        key = m.group(1)
+        default = m.group(2)  # None si pas de |
+        if key in variables:
+            val = variables[key]
+            return "" if val is None else str(val)
+        if default is not None:
+            return default
+        if partial:
+            return m.group(0)   # laisser intact
+        return ""               # variable manquante → chaîne vide
+    return _TEMPLATE_RE.sub(_sub, template)
+
+def _template_vars(template):
+    """Retourne la liste ordonnée (sans doublons) des variables présentes."""
+    seen, result = set(), []
+    for m in _TEMPLATE_RE.finditer(template):
+        k = m.group(1)
+        if k not in seen:
+            seen.add(k)
+            result.append(k)
+    return _OktopiosList(result)
+
+def _template_escape(s):
+    """Échappe {{ et }} pour qu'ils ne soient pas interprétés comme marqueurs."""
+    return str(s).replace("{{", r"\{\{").replace("}}", r"\}\}")
+
+def _template_strip(template):
+    """Supprime tous les marqueurs {{...}} du gabarit (retourne le texte nu)."""
+    return _TEMPLATE_RE.sub("", template)
+
+def _template_from_file(path, variables):
+    """Charge un fichier gabarit et le rend."""
+    with open(path, encoding="utf-8") as _f:
+        tpl = _f.read()
+    return _template_render(tpl, variables)
+
+def _template_to_file(template, path, variables):
+    """Rend le gabarit et écrit le résultat dans un fichier."""
+    result = _template_render(template, variables)
+    with open(path, "w", encoding="utf-8") as _f:
+        _f.write(result)
+    return result
+
+def _template_file_to_file(tpl_path, out_path, variables):
+    """Charge un fichier gabarit, le rend et écrit le résultat dans un autre fichier."""
+    with open(tpl_path, encoding="utf-8") as _f:
+        tpl = _f.read()
+    result = _template_render(tpl, variables)
+    with open(out_path, "w", encoding="utf-8") as _f:
+        _f.write(result)
+    return result
+
+def _ok_map_to_dict(m):
+    """Convertit un OktopiosMap en dict Python natif pour le rendu de gabarits."""
+    if isinstance(m, _OktopiosMap):
+        return {str(k): v for k, v in m.items()}
+    if isinstance(m, dict):
+        return {str(k): v for k, v in m.items()}
+    return {}
+
+
 NativeFuncs = {
     "Math" : {
         # --- Constantes ---
@@ -2586,6 +2658,42 @@ NativeFuncs = {
         "timestamp":   lambda *a: _log_ts(),
         # Liste les niveaux disponibles
         "levels":      lambda *a: _OktopiosList(["DEBUG", "INFO", "WARN", "ERROR", "FATAL"]),
+    },
+
+    # -----------------------------------------------------------------------
+    # Template — rendu de gabarits de chaînes avec substitution de variables
+    # Syntaxe : {{variable}} ou {{variable|valeur_par_défaut}}
+    # Aucune dépendance externe : stdlib uniquement.
+    # -----------------------------------------------------------------------
+    "Template": {
+        # --- Rendu en mémoire ---
+        # Rend un gabarit (string) en remplaçant {{var}} / {{var|défaut}}
+        # par les valeurs du map `vars`.  Variables manquantes → chaîne vide.
+        "render":     lambda template, vars: _template_render(str(template), _ok_map_to_dict(vars)),
+
+        # Rendu partiel : les variables manquantes restent sous forme {{var}}
+        "partial":    lambda template, vars: _template_render(str(template), _ok_map_to_dict(vars), partial=True),
+
+        # --- Fichiers ---
+        # Charge un fichier gabarit et le rend avec `vars`
+        "fromFile":   lambda path, vars: _template_from_file(str(path), _ok_map_to_dict(vars)),
+
+        # Rend un gabarit (string) et écrit le résultat dans `path`
+        "toFile":     lambda template, path, vars: _template_to_file(str(template), str(path), _ok_map_to_dict(vars)),
+
+        # Charge un fichier gabarit, rend, et écrit dans un fichier de sortie
+        "fileToFile": lambda tpl_path, out_path, vars: _template_file_to_file(str(tpl_path), str(out_path), _ok_map_to_dict(vars)),
+
+        # --- Inspection ---
+        # Retourne la liste ordonnée (sans doublons) des variables présentes
+        "vars":       lambda template: _template_vars(str(template)),
+
+        # --- Utilitaires ---
+        # Supprime tous les marqueurs {{...}} du gabarit (texte nu)
+        "strip":      lambda template: _template_strip(str(template)),
+
+        # Échappe {{ et }} pour qu'ils ne soient pas interprétés
+        "escape":     lambda s: _template_escape(s),
     },
 
 }
