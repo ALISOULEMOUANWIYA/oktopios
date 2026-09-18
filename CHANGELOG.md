@@ -1,5 +1,70 @@
 # Changelog
 
+## [0.9.0] — Namespace `Zip` — archives ZIP natives
+
+### Ajouté
+
+**Namespace `Zip` — 9 fonctions pour créer et manipuler des archives ZIP (stdlib uniquement, aucune dépendance)**
+
+Toutes les fonctions utilisent uniquement la bibliothèque standard Python (`zipfile`, `io`) —
+aucun `pip install` supplémentaire n'est requis.
+
+**Création**
+- `Zip.create(path, files)` — crée une archive ZIP à `path` ; chaque entrée de `files` est un chemin ou un map `{src, dest}` pour renommer à la volée ; retourne le nombre de fichiers ajoutés
+
+**Inspection**
+- `Zip.list(path)` — retourne la liste des noms de fichiers présents dans l'archive
+- `Zip.info(path, name)` — retourne un map avec les métadonnées d'une entrée (`name`, `size`, `compressed`, `date`, `time`, `crc`)
+- `Zip.isValid(path)` — vérifie si un fichier est une archive ZIP valide
+
+**Lecture**
+- `Zip.read(path, name)` — lit le contenu textuel (UTF-8) d'un fichier dans l'archive sans l'extraire
+
+**Extraction**
+- `Zip.extract(path, dest)` — extrait tous les fichiers dans le dossier de destination
+- `Zip.extractFile(path, name, dest)` — extrait un seul fichier nommé
+
+**Modification**
+- `Zip.add(path, src, dest?)` — ajoute un fichier à une archive existante (la crée si absente)
+- `Zip.remove(path, names)` — supprime une ou plusieurs entrées de l'archive par nom
+
+```okp
+inject Zip
+
+// --- Créer une archive ---
+Zip.create("rapport.zip", ["rapport.txt", "data.csv"])
+// Avec renommage
+Zip.create("bundle.zip", [
+    { src: "dist/app.js", dest: "app.js" },
+    { src: "dist/style.css", dest: "style.css" }
+])
+
+// --- Inspecter ---
+var fichiers = Zip.list("rapport.zip")
+print(fichiers)           // [rapport.txt, data.csv]
+
+var meta = Zip.info("rapport.zip", "rapport.txt")
+print(meta.size)          // taille originale en octets
+print(meta.date)          // ex. "2026-09-18"
+
+print(Zip.isValid("rapport.zip"))   // true
+
+// --- Lire sans extraire ---
+var contenu = Zip.read("rapport.zip", "rapport.txt")
+print(contenu)
+
+// --- Extraire ---
+Zip.extract("rapport.zip", "sortie/")
+Zip.extractFile("rapport.zip", "data.csv", "sortie/")
+
+// --- Modifier ---
+Zip.add("rapport.zip", "extra.txt")
+Zip.remove("rapport.zip", "rapport.txt")
+Zip.remove("rapport.zip", ["data.csv", "extra.txt"])
+```
+
+---
+
 ## [0.8.0] — Namespace `Template` — gabarits de chaînes natifs
 
 ### Ajouté

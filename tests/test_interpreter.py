@@ -715,3 +715,50 @@ def test_template_render(capsys):
         'print(Template.render("Bonjour {{nom}}, {{role|invite}} !", {"nom": "Awa"}))\n'
     )
     assert out(code, capsys) == "Bonjour Awa, invite !"
+
+
+def test_zip_create_list_read(tmp_path, capsys):
+    """Zip.create → Zip.list → Zip.read → Zip.isValid"""
+    # Créer deux fichiers temporaires à archiver
+    f1 = tmp_path / "hello.txt"
+    f2 = tmp_path / "world.txt"
+    f1.write_text("Bonjour Oktopios !", encoding="utf-8")
+    f2.write_text("Hello World!", encoding="utf-8")
+
+    archive = str(tmp_path / "test.zip").replace("\\", "/")
+    src1 = str(f1).replace("\\", "/")
+    src2 = str(f2).replace("\\", "/")
+
+    code = (
+        "inject Zip\n"
+        f'var n = Zip.create("{archive}", ["{src1}", "{src2}"])\n'
+        'print(n)\n'
+        f'print(Zip.isValid("{archive}"))\n'
+        f'var lst = Zip.list("{archive}")\n'
+        f'print(Zip.read("{archive}", lst[0]))\n'
+    )
+    result = out(code, capsys)
+    assert "2" in result
+    assert "true" in result
+    assert "Bonjour Oktopios !" in result
+
+
+def test_zip_extract(tmp_path, capsys):
+    """Zip.create → Zip.extract"""
+    import zipfile
+    archive = tmp_path / "data.zip"
+    with zipfile.ZipFile(archive, "w") as _zf:
+        _zf.writestr("msg.txt", "extrait avec succes")
+
+    dest = tmp_path / "out"
+    dest.mkdir()
+    archive_str = str(archive).replace("\\", "/")
+    dest_str = str(dest).replace("\\", "/")
+    code = (
+        "inject Zip\n"
+        f'Zip.extract("{archive_str}", "{dest_str}")\n'
+        'print("ok")\n'
+    )
+    result = out(code, capsys)
+    assert result == "ok"
+    assert (dest / "msg.txt").read_text(encoding="utf-8") == "extrait avec succes"

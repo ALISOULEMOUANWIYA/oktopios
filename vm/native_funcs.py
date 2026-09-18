@@ -23,6 +23,8 @@ except ImportError:
     _Fore = _Back = _Style = None
 import json as _json
 import sqlite3 as _sqlite3
+import zipfile as _zipfile
+import io as _io
 import difflib as _difflib
 import re as _re
 import datetime as _datetime
@@ -1841,6 +1843,86 @@ def _ok_map_to_dict(m):
         return {str(k): v for k, v in m.items()}
     return {}
 
+# -----------------------------------------------------------------------
+# Helpers pour le namespace Zip — archives ZIP (stdlib zipfile uniquement)
+# -----------------------------------------------------------------------
+def _zip_create(path, files):
+    """
+    Crée une archive ZIP à `path` contenant les fichiers de la liste `files`.
+    Chaque entrée de `files` est soit un chemin (str) soit un map {src, dest}.
+    Retourne le nombre de fichiers ajoutés.
+    """
+    count = 0
+    with _zipfile.ZipFile(str(path), "w", _zipfile.ZIP_DEFLATED) as _zf:
+        for entry in (files if files is not None else []):
+            if isinstance(entry, dict) or isinstance(entry, _OktopiosMap):
+                src = str(entry.get("src", ""))
+                dest = str(entry.get("dest", src))
+            else:
+                src = dest = str(entry)
+            _zf.write(src, dest)
+            count += 1
+    return count
+
+def _zip_list(path):
+    """Retourne la liste des noms de fichiers dans l'archive."""
+    with _zipfile.ZipFile(str(path), "r") as _zf:
+        return _OktopiosList(_zf.namelist())
+
+def _zip_extract(path, dest="."):
+    """Extrait tous les fichiers de l'archive dans le dossier `dest`."""
+    with _zipfile.ZipFile(str(path), "r") as _zf:
+        _zf.extractall(str(dest))
+    return True
+
+def _zip_extract_file(path, name, dest="."):
+    """Extrait un fichier spécifique de l'archive."""
+    with _zipfile.ZipFile(str(path), "r") as _zf:
+        _zf.extract(str(name), str(dest))
+    return True
+
+def _zip_read(path, name):
+    """Lit le contenu d'un fichier dans l'archive (retourne une string UTF-8)."""
+    with _zipfile.ZipFile(str(path), "r") as _zf:
+        return _zf.read(str(name)).decode("utf-8", errors="replace")
+
+def _zip_add(path, src, dest=None):
+    """Ajoute un fichier à une archive existante (la crée si absente)."""
+    mode = "a" if _zipfile.is_zipfile(str(path)) else "w"
+    with _zipfile.ZipFile(str(path), mode, _zipfile.ZIP_DEFLATED) as _zf:
+        _zf.write(str(src), str(dest) if dest else str(src))
+    return True
+
+def _zip_remove(path, names):
+    """Supprime des entrées d'une archive en recopiant dans un nouveau fichier."""
+    to_remove = {str(n) for n in (names if isinstance(names, (list, _OktopiosList)) else [names])}
+    buf = _io.BytesIO()
+    with _zipfile.ZipFile(str(path), "r") as _src_zf:
+        with _zipfile.ZipFile(buf, "w", _zipfile.ZIP_DEFLATED) as _dst_zf:
+            for item in _src_zf.infolist():
+                if item.filename not in to_remove:
+                    _dst_zf.writestr(item, _src_zf.read(item.filename))
+    with open(str(path), "wb") as _f:
+        _f.write(buf.getvalue())
+    return True
+
+def _zip_info(path, name):
+    """Retourne un map avec les métadonnées d'une entrée (taille, date, etc.)."""
+    with _zipfile.ZipFile(str(path), "r") as _zf:
+        info = _zf.getinfo(str(name))
+        return _OktopiosMap({
+            "name": info.filename,
+            "size": info.file_size,
+            "compressed": info.compress_size,
+            "date": "%04d-%02d-%02d" % info.date_time[:3],
+            "time": "%02d:%02d:%02d" % info.date_time[3:],
+            "crc": info.CRC,
+        })
+
+def _zip_is_valid(path):
+    """Retourne true si le fichier est une archive ZIP valide."""
+    return _zipfile.is_zipfile(str(path))
+
 
 NativeFuncs = {
     "Math" : {
@@ -2694,6 +2776,49 @@ NativeFuncs = {
 
         # Échappe {{ et }} pour qu'ils ne soient pas interprétés
         "escape":     lambda s: _template_escape(s),
+    },
+
+    # -----------------------------------------------------------------------
+    # Namespace Zip — création et manipulation d'archives ZIP
+    # Aucune dépendance externe : stdlib zipfile uniquement.
+    #
+    # Utilisation rapide :
+    #   inject Zip
+    #   Zip.create("archive.zip", ["fichier1.txt", "fichier2.txt"])
+    #   print(Zip.list("archive.zip"))
+    #   Zip.extract("archive.zip", "dossier_sortie/")
+    # -----------------------------------------------------------------------
+    "Zip": {
+        # --- Création ---
+        # Crée une archive ZIP contenant les fichiers de la liste.
+        # Chaque entrée est un chemin (str) ou un map {src, dest} pour renommer.
+        # Retourne le nombre de fichiers ajoutés.
+        "create":      lambda path, files: _zip_create(str(path), files),
+
+        # --- Inspection ---
+        # Liste les noms de tous les fichiers présents dans l'archive.
+        "list":        lambda path: _zip_list(str(path)),
+        # Retourne les métadonnées d'une entrée spécifique (taille, date, crc…)
+        "info":        lambda path, name: _zip_info(str(path), str(name)),
+        # Vérifie si un fichier est une archive ZIP valide.
+        "isValid":     lambda path: _zip_is_valid(str(path)),
+
+        # --- Lecture ---
+        # Lit le contenu textuel d'un fichier dans l'archive (UTF-8).
+        "read":        lambda path, name: _zip_read(str(path), str(name)),
+
+        # --- Extraction ---
+        # Extrait tous les fichiers dans un dossier de destination.
+        "extract":     lambda path, dest=".": _zip_extract(str(path), str(dest)),
+        # Extrait un seul fichier nommé dans un dossier de destination.
+        "extractFile": lambda path, name, dest=".": _zip_extract_file(str(path), str(name), str(dest)),
+
+        # --- Modification ---
+        # Ajoute un fichier à une archive existante (la crée si absente).
+        "add":         lambda path, src, dest=None: _zip_add(str(path), str(src), dest),
+        # Supprime une ou plusieurs entrées de l'archive (par nom).
+        # Accepte un nom (str) ou une liste de noms.
+        "remove":      lambda path, names: _zip_remove(str(path), names),
     },
 
 }
