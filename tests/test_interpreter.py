@@ -839,3 +839,30 @@ def _err(code: str) -> str:
     with pytest.raises(Exception) as exc:
         run(code)
     return str(exc.value)
+
+
+def test_any_return_type_accepts_map(capsys):
+    # Régression : un type de retour `any` accepte n'importe quelle valeur
+    # (ici une map) même sur une fonction libre — requis par les contrôleurs.
+    code = (
+        "inject Type\n"
+        "fun f(x: any): any {\n"
+        '    var m = { "k": 1 }\n'
+        "    return m\n"
+        "}\n"
+        "print(Type.type(f(0)))\n"
+    )
+    assert out(code, capsys) == "map"
+
+
+def test_server_route_matching():
+    # Namespace Server : enregistrement + matching de routes (sans démarrer le
+    # serveur bloquant), avec extraction des :params.
+    from vm.interpreter import Interpreter
+    it = Interpreter()
+    it._server_route("GET", "/users/:id", "H")
+    h, params = it._match_route("GET", "/users/7")
+    assert h == "H" and params == {"id": "7"}
+    assert it._match_route("GET", "/users")[0] is None       # arité différente
+    assert it._match_route("POST", "/users/7")[0] is None    # méthode différente
+

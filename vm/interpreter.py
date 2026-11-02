@@ -116,6 +116,18 @@ class Interpreter:
         if "Type" in self.native_funcs:
             # 'create' (et non 'new' : mot-clé réservé pour l'instanciation)
             self.native_funcs["Type"]["create"] = lambda class_name, *args: self._reflect_new(class_name, list(args))
+        # Serveur HTTP natif (a besoin de l'interpréteur : appelle des
+        # contrôleurs Oktopios à chaque requête). Base du pilier routing du
+        # framework.
+        self.native_funcs["Server"] = {
+            "route": lambda method, path, handler: self._server_route(method, path, handler),
+            "get":   lambda path, handler: self._server_route("GET", path, handler),
+            "post":  lambda path, handler: self._server_route("POST", path, handler),
+            "put":   lambda path, handler: self._server_route("PUT", path, handler),
+            "delete": lambda path, handler: self._server_route("DELETE", path, handler),
+            "run":   lambda port=8000, host="127.0.0.1": self._server_run(port, host),
+            "routes": lambda: OktopiosList([OktopiosMap({"method": m, "path": "/" + "/".join(s)}) for (m, s, _h) in self._routes]),
+        }
         # Étendre IAModule avec le fallback en cascade + le streaming (ont
         # besoin de l'interpréteur : rappeler un backend différent, ou
         # invoquer une fonction Oktopios à chaque morceau de texte reçu).
@@ -184,6 +196,7 @@ class Interpreter:
             if _p and _p not in self.module_search_paths:
                 self.module_search_paths.append(_p)
         self.matches_db = {}  # nom de la base -> NeuronLoopDB (déclarations neuron_loop)
+        self._routes = []  # routes HTTP : (method, [segments], handler) pour le namespace Server
         #self.env.define("heart", Heart())
 
     # ---- INTERPRÉTATION ----
@@ -351,6 +364,129 @@ class Interpreter:
                 f"(classes connues : {list(self.classes.keys())})"
             )
         return self.instantiate_class(class_decl, args=args, run_constructor=bool(args))
+
+    def _server_route(self, method, path, handler):
+        """Enregistre une route HTTP. `path` peut contenir des :params
+        (ex. /users/:id). `handler` est une fonction Oktopios (req) -> réponse."""
+        segs = [s for s in str(path).split("/") if s != ""]
+        self._routes.append((str(method).upper(), segs, handler))
+        return len(self._routes)
+
+    def _match_route(self, method, path):
+        """Trouve la route correspondant à (method, path) ; renvoie
+        (handler, params) ou (None, None)."""
+        req_segs = [s for s in path.split("/") if s != ""]
+        for (m, segs, handler) in self._routes:
+            if m != method or len(segs) != len(req_segs):
+                continue
+            params = {}
+            ok = True
+            for pat, val in zip(segs, req_segs):
+                if pat.startswith(":"):
+                    params[pat[1:]] = val
+                elif pat != val:
+                    ok = False
+                    break
+            if ok:
+                return handler, params
+        return None, None
+
+    def _server_run(self, port=8000, host="127.0.0.1"):
+        """Démarre un serveur HTTP bloquant qui dispatche chaque requête vers le
+        contrôleur Oktopios de la route correspondante."""
+        import json as _json
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        from urllib.parse import urlparse, parse_qs
+        interp = self
+
+        def _to_jsonable(v):
+            if isinstance(v, (OktopiosMap, dict)):
+                return {str(k): _to_jsonable(val) for k, val in dict(v).items()}
+            if isinstance(v, (OktopiosList, list, tuple)):
+                return [_to_jsonable(x) for x in list(v)]
+            if hasattr(v, "fields") and hasattr(v, "klass"):  # instance -> map de champs
+                return {k: _to_jsonable(f.value) for k, f in v.fields.items()}
+            return v
+
+        class _Handler(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def _dispatch(self, method):
+                parsed = urlparse(self.path)
+                query = {k: (v[0] if len(v) == 1 else v) for k, v in parse_qs(parsed.query).items()}
+                length = int(self.headers.get("Content-Length") or 0)
+                body = self.rfile.read(length).decode("utf-8") if length else ""
+                handler, params = interp._match_route(method, parsed.path)
+                if handler is None:
+                    self.send_response(404)
+                    self.send_header("Content-Type", "text/plain; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(b"404 Not Found")
+                    return
+                req = OktopiosMap({
+                    "method": method,
+                    "path": parsed.path,
+                    "query": OktopiosMap(query),
+                    "params": OktopiosMap(params),
+                    "body": body,
+                })
+                try:
+                    if isinstance(handler, (UserFunction, LambdaFunction)):
+                        result = handler.call(interp, [req])
+                    else:
+                        result = handler(req)
+                except Exception as e:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "text/plain; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(("500 Internal Server Error\n" + str(e)).encode("utf-8"))
+                    return
+                status = 200
+                ctype = "text/html; charset=utf-8"
+                headers = {}
+                if isinstance(result, (OktopiosMap, dict)):
+                    r = dict(result)
+                    status = int(r.get("status", 200))
+                    headers = dict(r.get("headers", {}) or {})
+                    if "json" in r:
+                        payload = _json.dumps(_to_jsonable(r["json"]), ensure_ascii=False)
+                        ctype = "application/json; charset=utf-8"
+                    else:
+                        payload = str(r.get("body", ""))
+                else:
+                    payload = "" if result is None else str(result)
+                self.send_response(status)
+                low = [k.lower() for k in headers.keys()]
+                if "content-type" not in low:
+                    self.send_header("Content-Type", ctype)
+                for k, v in headers.items():
+                    self.send_header(str(k), str(v))
+                self.end_headers()
+                self.wfile.write(payload.encode("utf-8"))
+
+            def do_GET(self):
+                self._dispatch("GET")
+
+            def do_POST(self):
+                self._dispatch("POST")
+
+            def do_PUT(self):
+                self._dispatch("PUT")
+
+            def do_DELETE(self):
+                self._dispatch("DELETE")
+
+        httpd = HTTPServer((host, int(port)), _Handler)
+        print(Fore.LIGHTGREEN_EX + f"[Server] Oktopios en ecoute sur http://{host}:{port} ({len(self._routes)} routes)" + Style.RESET_ALL)
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            httpd.server_close()
+            print(Fore.YELLOW + "[Server] arrete." + Style.RESET_ALL)
+        return None
 
     def schedule_task(self, intention_name, args):
         """Heart 'ExecutionFlow' : place une intention en attente au lieu de
@@ -3577,8 +3713,8 @@ class Interpreter:
                         if declared_return_type == "fun" and self.is_callable(valeurReturn):
                             # OK, une fonction peut retourner une fonction
                             pass
-                        elif declared_return_type == None:
-                            # les fonctions sans type de retour explicite sont vérifiées comme si elles retournaient None
+                        elif declared_return_type in (None, "any", "object"):
+                            # type de retour absent ou joker (any/object) : accepte toute valeur
                             pass
                         else:
                             raise Exception(

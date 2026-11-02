@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.12.0] — Serveur HTTP natif & routing (namespace `Server`)
+
+### Ajouté
+
+**Namespace `Server` — serveur HTTP natif (stdlib `http.server`, aucune dépendance)**
+
+- `Server.get/post/put/delete(path, handler)` et `Server.route(method, path, handler)` —
+  enregistre une route ; `path` accepte des `:params` (ex. `/users/:id`)
+- `Server.run(port, host?)` — démarre le serveur (bloquant) ; chaque requête appelle
+  le contrôleur Oktopios avec un map `{method, path, query, params, body}` et renvoie
+  sa réponse : une chaîne (→ `text/html`), ou un map `{status, headers, body}` /
+  `{json: ...}` (→ `application/json`). Route inconnue → 404.
+- `Server.routes()` — liste des routes enregistrées
+
+C'est le **« C » de MVC** : la base du pilier routing du framework
+(`oktopios-framework`), aux côtés du Modèle (ORM) et de la Vue (Template).
+
+### Corrigé
+
+- Le type de retour `any` (et `object`) accepte désormais **toute valeur** sur une
+  fonction libre (avant : rejeté s'il ne correspondait pas exactement au type
+  renvoyé) — indispensable aux contrôleurs qui renvoient des maps.
+
+---
+
 ## [0.11.0] — Messages d'erreur intelligents : « Vouliez-vous dire ? »
 
 ### Ajouté
