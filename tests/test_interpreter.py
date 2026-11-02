@@ -762,3 +762,43 @@ def test_zip_extract(tmp_path, capsys):
     result = out(code, capsys)
     assert result == "ok"
     assert (dest / "msg.txt").read_text(encoding="utf-8") == "extrait avec succes"
+
+
+def test_text_slugify_and_cases(capsys):
+    code = (
+        "inject Text\n"
+        'print(Text.slugify("Élève à l\'école !"))\n'
+        'print(Text.snake("maVariableHTTP"))\n'
+        'print(Text.camel("nom_de_famille"))\n'
+        'print(Text.pascal("user-profile"))\n'
+    )
+    assert out(code, capsys).splitlines() == [
+        "eleve-a-l-ecole", "ma_variable_http", "nomDeFamille", "UserProfile",
+    ]
+
+
+def test_text_fuzzy(capsys):
+    code = (
+        "inject Text\n"
+        'print(Text.levenshtein("kitten", "sitting"))\n'
+        'print(Text.closest("pritn", ["print", "input", "len"]))\n'
+        'print(Text.similarity("abc", "abc"))\n'
+    )
+    assert out(code, capsys).splitlines() == ["3", "print", "1.0"]
+
+
+def test_text_misc(capsys):
+    code = (
+        "inject Text\n"
+        'print(Text.isPalindrome("Ésope reste ici et se repose"))\n'
+        'print(Text.mask("4970123412341234", 4))\n'
+        'print(Text.initials("Ali Soule Mouanwiya"))\n'
+        'print(Text.wordCount("un deux trois"))\n'
+    )
+    assert out(code, capsys).splitlines() == [
+        "true", "************1234", "ASM", "3",
+    ]
+
+
+# ── Suggestions « Vouliez-vous dire ? » (0.11.0) ─────────────────────────────
+

@@ -1844,6 +1844,86 @@ def _ok_map_to_dict(m):
     return {}
 
 # -----------------------------------------------------------------------
+# Helpers pour le namespace Text — manipulation avancée de chaînes
+# (stdlib uniquement : unicodedata, textwrap, re)
+# -----------------------------------------------------------------------
+import unicodedata as _unicodedata
+import textwrap as _textwrap
+
+def _text_remove_accents(s):
+    """Supprime les accents/diacritiques ("Élève" → "Eleve")."""
+    nfkd = _unicodedata.normalize("NFKD", str(s))
+    return "".join(c for c in nfkd if not _unicodedata.combining(c))
+
+def _text_words(s):
+    """Découpe une chaîne en mots (gère camelCase, snake_case, kebab-case, espaces)."""
+    s = _text_remove_accents(str(s))
+    s = _re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", s)
+    s = _re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", s)
+    return [w for w in _re.split(r"[^A-Za-z0-9]+", s) if w]
+
+def _text_slugify(s, sep="-"):
+    """Transforme une chaîne en slug URL ("Bonjour le Monde !" → "bonjour-le-monde")."""
+    return str(sep).join(w.lower() for w in _text_words(s))
+
+def _text_camel(s):
+    ws = _text_words(s)
+    if not ws:
+        return ""
+    return ws[0].lower() + "".join(w.capitalize() for w in ws[1:])
+
+def _text_pascal(s):
+    return "".join(w.capitalize() for w in _text_words(s))
+
+def _text_levenshtein(a, b):
+    """Distance d'édition de Levenshtein entre deux chaînes."""
+    a, b = str(a), str(b)
+    if len(a) < len(b):
+        a, b = b, a
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+def _text_similarity(a, b):
+    """Similarité normalisée entre 0.0 et 1.0 (basée sur Levenshtein)."""
+    a, b = str(a), str(b)
+    longest = max(len(a), len(b))
+    if longest == 0:
+        return 1.0
+    return round(1.0 - _text_levenshtein(a, b) / longest, 4)
+
+def _text_closest(word, candidates):
+    """Retourne le candidat le plus proche de `word` (suggestion « vouliez-vous dire »)."""
+    cands = [str(c) for c in (candidates or [])]
+    if not cands:
+        return None
+    return min(cands, key=lambda c: _text_levenshtein(word, c))
+
+def _text_wrap(s, width=80):
+    return _OktopiosList(_textwrap.wrap(str(s), int(width)))
+
+def _text_is_palindrome(s):
+    clean = "".join(c.lower() for c in _text_remove_accents(s) if c.isalnum())
+    return clean == clean[::-1]
+
+def _text_initials(s):
+    return "".join(w[0].upper() for w in str(s).split() if w)
+
+def _text_word_count(s):
+    return len(_re.findall(r"\w+", str(s), _re.UNICODE))
+
+def _text_mask(s, visible=4, char="*"):
+    s = str(s)
+    visible = max(0, int(visible))
+    if visible >= len(s):
+        return s
+    return str(char) * (len(s) - visible) + (s[-visible:] if visible else "")
+
+# -----------------------------------------------------------------------
 # Helpers pour le namespace Zip — archives ZIP (stdlib zipfile uniquement)
 # -----------------------------------------------------------------------
 def _zip_create(path, files):
@@ -2819,6 +2899,38 @@ NativeFuncs = {
         # Supprime une ou plusieurs entrées de l'archive (par nom).
         # Accepte un nom (str) ou une liste de noms.
         "remove":      lambda path, names: _zip_remove(str(path), names),
+    },
+
+    # -----------------------------------------------------------------------
+    # Namespace Text — manipulation avancée de chaînes (stdlib uniquement)
+    #
+    #   inject Text
+    #   print(Text.slugify("Élève à l'école !"))   // eleve-a-l-ecole
+    #   print(Text.levenshtein("chat", "chats"))    // 1
+    # -----------------------------------------------------------------------
+    "Text": {
+        # --- Conversion de casse ---
+        "slugify":       lambda s, sep="-": _text_slugify(s, sep),
+        "camel":         lambda s: _text_camel(s),
+        "pascal":        lambda s: _text_pascal(s),
+        "snake":         lambda s: _text_slugify(s, "_"),
+        "kebab":         lambda s: _text_slugify(s, "-"),
+        "title":         lambda s: " ".join(w.capitalize() for w in str(s).split()),
+        # --- Nettoyage ---
+        "removeAccents": lambda s: _text_remove_accents(s),
+        "words":         lambda s: _OktopiosList(_text_words(s)),
+        # --- Comparaison floue ---
+        "levenshtein":   lambda a, b: _text_levenshtein(a, b),
+        "similarity":    lambda a, b: _text_similarity(a, b),
+        "closest":       lambda word, candidates: _text_closest(word, candidates),
+        # --- Mise en forme ---
+        "wrap":          lambda s, width=80: _text_wrap(s, width),
+        "reverse":       lambda s: str(s)[::-1],
+        "initials":      lambda s: _text_initials(s),
+        "mask":          lambda s, visible=4, char="*": _text_mask(s, visible, char),
+        # --- Analyse ---
+        "wordCount":     lambda s: _text_word_count(s),
+        "isPalindrome":  lambda s: _text_is_palindrome(s),
     },
 
 }

@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.10.0] — Namespace `Text` — manipulation avancée de chaînes
+
+### Ajouté
+
+**Namespace `Text` — 17 fonctions de traitement de texte (stdlib uniquement : `unicodedata`, `textwrap`, `re`)**
+
+**Conversion de casse** (comprend camelCase, snake_case, kebab-case, espaces et accents)
+- `Text.slugify(s, sep?)` — slug URL (`"Élève à l'école !"` → `"eleve-a-l-ecole"`)
+- `Text.camel(s)`, `Text.pascal(s)`, `Text.snake(s)`, `Text.kebab(s)`, `Text.title(s)`
+
+**Nettoyage**
+- `Text.removeAccents(s)` — supprime les diacritiques (`"Élève"` → `"Eleve"`)
+- `Text.words(s)` — découpe une chaîne en mots (`"maVariableHTTP"` → `[ma, Variable, HTTP]`)
+
+**Comparaison floue**
+- `Text.levenshtein(a, b)` — distance d'édition
+- `Text.similarity(a, b)` — similarité normalisée entre 0.0 et 1.0
+- `Text.closest(word, candidates)` — suggestion « vouliez-vous dire ? »
+
+**Mise en forme & analyse**
+- `Text.wrap(s, width?)` — retour à la ligne automatique (liste de lignes)
+- `Text.reverse(s)`, `Text.initials(s)`, `Text.mask(s, visible?, char?)`
+- `Text.wordCount(s)`, `Text.isPalindrome(s)` (ignore casse, accents et ponctuation)
+
+```okp
+inject Text
+
+print(Text.slugify("Bonjour le Monde !"))            // bonjour-le-monde
+print(Text.snake("maVariableHTTP"))                  // ma_variable_http
+print(Text.closest("pritn", ["print", "input"]))     // print
+print(Text.mask("4970123412341234", 4))              // ************1234
+print(Text.isPalindrome("Ésope reste ici et se repose"))  // true
+```
+
+### Corrigé
+- `setup.py` resynchronisé sur la version du paquet (était resté à 0.7.0).
+
+### Tests
+- 3 nouveaux tests d'intégration (`test_text_*`) — 152 tests au total.
+
+---
+
 ## [0.9.0] — Namespace `Zip` — archives ZIP natives
 
 ### Ajouté

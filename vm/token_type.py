@@ -2,8 +2,8 @@
 from enum import Enum, auto
 
 class TokenType(Enum):
-    FALSE = None
-    TRUE = None
+    FALSE = auto()   # valeurs distinctes via auto() (avant: None -> TRUE aliasait
+    TRUE = auto()    # FALSE, et cassait l'enum sous Python 3.13)
     VAR = auto()
     VAL = auto()
     REF = auto()
