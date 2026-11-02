@@ -35,6 +35,8 @@ version à la plus récente :
 | **0.2.3** | Namespace `Csv` — lecture et écriture CSV native | <img src="https://raw.githubusercontent.com/ALISOULEMOUANWIYA/oktopios/main/docs/media/oktopios_v0.2.3_linkedin.png" alt="Oktopios 0.2.3 — Csv" width="460"> |
 | **0.2.4** | Namespace `Table` — rendu de tableaux formatés en texte | <img src="https://raw.githubusercontent.com/ALISOULEMOUANWIYA/oktopios/main/docs/media/oktopios_v0.2.4_linkedin.png" alt="Oktopios 0.2.4 — Table" width="460"> |
 | **0.2.5** | Namespace `Fmt` — formatage humain de valeurs (nombres, %, monnaie, octets, durées…) | <img src="https://raw.githubusercontent.com/ALISOULEMOUANWIYA/oktopios/main/docs/media/oktopios_v0.2.5_linkedin.png" alt="Oktopios 0.2.5 — Fmt" width="460"> |
+| **0.10.0** | Namespace `Text` — slugify, camel/snake/kebab, Levenshtein, suggestions floues, masquage… | <img src="https://raw.githubusercontent.com/ALISOULEMOUANWIYA/oktopios/main/docs/media/linkedin_v0.10.0.png" alt="Oktopios 0.10.0 — Text" width="460"> |
+| **0.11.0** | Messages d'erreur intelligents — « Vouliez-vous dire ? » + rappel `inject` manquant | <img src="https://raw.githubusercontent.com/ALISOULEMOUANWIYA/oktopios/main/docs/media/linkedin_v0.11.0.png" alt="Oktopios 0.11.0 — Vouliez-vous dire ?" width="460"> |
 
 ## Vision 🐙 
 

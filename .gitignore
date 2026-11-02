@@ -49,3 +49,4 @@ native_functions.md
 /*.bat
 /*.bundle
 /generate_linkedin_image.py
+/generate_linkedin_image*.py

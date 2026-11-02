@@ -802,3 +802,40 @@ def test_text_misc(capsys):
 
 # ── Suggestions « Vouliez-vous dire ? » (0.11.0) ─────────────────────────────
 
+
+
+def test_suggestion_variable_inconnue():
+    msg = _err('var compteur = 3\nprint(compter)')
+    assert "Vouliez-vous dire 'compteur'" in msg
+
+
+def test_suggestion_fonction_inconnue():
+    msg = _err('fun saluer(n: string) { print(n) }\nsalur("x")')
+    assert "Vouliez-vous dire 'saluer'" in msg
+    assert "Vouliez-vous dire 'print'" in _err('pritn(3)')
+
+
+def test_suggestion_namespace_natif():
+    msg = _err('inject Text\nprint(Text.slugfy("A b"))')
+    assert "Vouliez-vous dire 'slugify'" in msg
+    assert "inject Text" in _err('print(Text.slugify("A b"))')
+    assert "Vouliez-vous dire 'Text'" in _err('inject Text\nprint(Txt.slugify("A b"))')
+
+
+def test_suggestion_absente_si_trop_loin():
+    assert "Vouliez-vous dire" not in _err('print(zzzzqqq)')
+
+
+def test_closest_name_unitaire():
+    from vm.suggestions import closest_name
+    assert closest_name("lenght", ["length", "list"]) == "length"
+    assert closest_name("MyVar", ["myvar", "other"]) == "myvar"
+    assert closest_name("f/1", []) is None
+    assert closest_name("ab", ["xyz"]) is None
+
+
+
+def _err(code: str) -> str:
+    with pytest.raises(Exception) as exc:
+        run(code)
+    return str(exc.value)

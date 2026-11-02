@@ -8,6 +8,7 @@ from . parser import FuncCall
 from . token_type import TokenType
 from colorama import Fore, Back, Style
 from . environment import Environment, NOT_FOUND
+from . suggestions import did_you_mean, env_names
 from . lambda_function import LambdaFunction
 from . return_Value import ReturnValue
 from . user_function import UserFunction
@@ -20,6 +21,7 @@ from . native_funcs import _ia_ollama_stream
 from . native_collections import NativeCollectionsFuncs as ColFuncs
 from . native_advanced_funcs import NativeAdvancedFuncs as AdvFuncs
 from . lexer import tokenize
+from . lexer import KEYWORDS as _LEXER_KEYWORDS
 from . parser import Parser
 from . module_proxy import ModuleProxy
 from . neuron_db import NeuronLoopDB, NeuroRuntime, RefEntryRuntime, RefMarker, CategoryStore, CapacityFullError
@@ -1182,7 +1184,7 @@ class Interpreter:
                     return retrn
 
             if value is NOT_FOUND:
-                raise Exception(f"[Erreur] Variable ou fonction inconnue : {expr.name} dans la ligne: {expr.line} et colone: {expr.column}")
+                raise Exception(f"[Erreur] Variable ou fonction inconnue : {expr.name} dans la ligne: {expr.line} et colone: {expr.column}" + self._unknown_name_hint(expr.name))
             #print(f"Donc value = {value}")
             return value
         #elif isinstance(expr, FunDecl) and expr.name is None:
@@ -3457,6 +3459,18 @@ class Interpreter:
 
         return lower <= value <= upper
 
+    def _name_candidates(self):
+        """Noms visibles (variables, fonctions, classes, constructeurs natifs) pour les suggestions."""
+        names = env_names(self.env) + env_names(self.global_env)
+        names += list(self.classes.keys()) + list(self.native_construct.keys())
+        return names
+
+    def _unknown_name_hint(self, name):
+        """Indice ajouté aux erreurs « nom inconnu » : inject manquant ou nom proche."""
+        if name in self.native_funcs and name not in self.modules_loaded:
+            return f" — '{name}' est un namespace natif : ajoutez 'inject {name}' en début de fichier."
+        return did_you_mean(name, self._name_candidates() + list(self.native_funcs.keys()))
+
     def evaluate_func_call(self, func_call):
         name = func_call.name
         args = [self.evaluate(arg) for arg in func_call.arguments]
@@ -3587,7 +3601,7 @@ class Interpreter:
 
             raise Exception(Fore.CYAN + f"[Erreur] '{name}' n'est pas une fonction." + Style.RESET_ALL)
 
-        raise Exception(Fore.CYAN + f"[Erreur] Fonction inconnue : {name}" + Style.RESET_ALL)
+        raise Exception(Fore.CYAN + f"[Erreur] Fonction inconnue : {name}" + did_you_mean(name, self._name_candidates() + list(_LEXER_KEYWORDS.keys())) + Style.RESET_ALL)
 
     def evaluate_func_inject_call(self, func_call):
         name = func_call.func
@@ -3605,8 +3619,14 @@ class Interpreter:
         is_injected = resolved_module in self.modules_loaded and resolved_module in self.native_funcs
 
         if is_injected:
+            ns_funcs = self.native_funcs[resolved_module]
+            if name not in ns_funcs:
+                raise Exception(
+                    Fore.CYAN + f"[Erreur] Fonction '{name}' inexistante dans le namespace '{resolved_module}'"
+                    + did_you_mean(name, ns_funcs.keys()) + Style.RESET_ALL
+                )
             try:
-                return self.native_funcs[resolved_module][name](*args)
+                return ns_funcs[name](*args)
             except Exception as e:
                 raise Exception(
                     Fore.CYAN + f"[Erreur lors de l'appel de la fonction native '{resolved_module}.{name}']: {str(e)}" + Style.RESET_ALL
@@ -3627,7 +3647,11 @@ class Interpreter:
             return func.call(self, args, func_call.line, func_call.column)
 
         else:
-            raise Exception(Fore.CYAN + f"[Erreur] Module '{module}' non injecté ni importé" + Style.RESET_ALL)
+            if module in self.native_funcs:
+                hint = f" — Ajoutez 'inject {module}' en début de fichier."
+            else:
+                hint = did_you_mean(module, list(self.native_funcs.keys()) + list(self.module_cache.keys()))
+            raise Exception(Fore.CYAN + f"[Erreur] Module '{module}' non injecté ni importé" + hint + Style.RESET_ALL)
 
     def visit_UpadateDictLiteral(self, expr):
         result = {}

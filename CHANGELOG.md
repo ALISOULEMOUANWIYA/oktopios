@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.11.0] — Messages d'erreur intelligents : « Vouliez-vous dire ? »
+
+### Ajouté
+
+**Suggestions automatiques dans les erreurs de nom** (nouveau module `vm/suggestions.py`, stdlib uniquement)
+
+Quand un nom est introuvable, l'interpréteur propose désormais le candidat le plus proche
+(distance de Levenshtein, insensible à la casse, seuil adapté à la longueur du nom) :
+
+- **Variable inconnue** → cherche parmi les variables visibles, fonctions, classes et constructeurs natifs
+- **Fonction inconnue** → inclut aussi les mots-clés du langage (`pritn` → `print`)
+- **Fonction de namespace inexistante** → `Text.slugfy` → *Vouliez-vous dire 'slugify' ?*
+  (auparavant : un `KeyError` brut et peu lisible)
+- **Namespace natif non injecté** → rappel explicite : *ajoutez 'inject Text' en début de fichier*
+- **Namespace mal orthographié** → `Txt` → *Vouliez-vous dire 'Text' ?*
+
+```okp
+var compteur = 3
+print(compter)
+// [Erreur] Variable ou fonction inconnue : compter ... — Vouliez-vous dire 'compteur' ?
+
+inject Text
+print(Text.slugfy("Bonjour"))
+// [Erreur] Fonction 'slugfy' inexistante dans le namespace 'Text' — Vouliez-vous dire 'slugify' ?
+```
+
+Aucune suggestion n'est affichée si aucun nom n'est suffisamment proche (pas de bruit).
+
+### Tests
+- 5 nouveaux tests (`test_suggestion_*`, `test_closest_name_unitaire`) — 157 tests au total.
+
+### Note de publication
+- La 0.10.0 (namespace `Text`) n'avait pas été poussée ni publiée : elle est incluse dans cette release.
+
+---
+
 ## [0.10.0] — Namespace `Text` — manipulation avancée de chaînes
 
 ### Ajouté
