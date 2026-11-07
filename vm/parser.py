@@ -644,6 +644,10 @@ class Parser:
             assign_expr = Assignment(name=name.value, value=value, assign_type=TokenType.COLON)
         elif isinstance(value, GetExpr):
             return SetExpr(value.object, value.index, value)
+        # Fallback : toute autre expression (appel de fonction, index, etc.).
+        # Sans ça, `x = unAppel()` produisait un ExpressionStmt(None) -> erreur.
+        if assign_expr is None:
+            assign_expr = Assignment(name=name.value, value=value, assign_type=TokenType.EQ)
         if return_expr_only:
             return assign_expr
         return ExpressionStmt(assign_expr)

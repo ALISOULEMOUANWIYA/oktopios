@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0] — Correctif : assignation depuis un appel de fonction
+
+### Corrigé
+
+- `x = unAppel(...)` (réassigner une variable depuis le résultat d'un **appel de
+  fonction**, y compris dans une boucle) produisait une erreur
+  « Expression non supporté : None ». Le parseur gère désormais tout type
+  d'expression en partie droite d'une assignation (fallback générique).
+  Débloque notamment les pipelines du type `resp = middleware(req, resp)`.
+
+---
+
 ## [0.12.0] — Serveur HTTP natif & routing (namespace `Server`)
 
 ### Ajouté

@@ -866,3 +866,16 @@ def test_server_route_matching():
     assert it._match_route("GET", "/users")[0] is None       # arité différente
     assert it._match_route("POST", "/users/7")[0] is None    # méthode différente
 
+
+
+def test_assign_from_call_result(capsys):
+    # Régression : réassigner une variable depuis un appel de fonction, y
+    # compris dans une boucle (ex. pipeline de middlewares `resp = mw(req, resp)`).
+    code = (
+        "fun inc(n: int): int { return n + 1 }\n"
+        "var acc = 0\n"
+        "var fns = [inc, inc, inc]\n"
+        "for (g in fns) { acc = g(acc) }\n"
+        "print(acc)\n"
+    )
+    assert out(code, capsys) == "3"
