@@ -176,8 +176,10 @@ def _exec_sql(path, sql, params=None):
     """Exécute une instruction SQLite paramétrée avec commit.
 
     - SELECT / PRAGMA  -> renvoie la liste des lignes (list de Map)
-    - INSERT/UPDATE/DELETE/CREATE... -> commit puis renvoie le nombre de
-      lignes affectées (rowcount)
+    - INSERT            -> commit puis renvoie l'identifiant de la ligne créée
+      (lastrowid) — pratique pour un ORM (save renvoie le nouvel id)
+    - UPDATE/DELETE/CREATE... -> commit puis renvoie le nombre de lignes
+      affectées (rowcount)
 
     `params` (liste) alimente les placeholders `?` — évite l'injection SQL :
         execSQL(db, "UPDATE users SET age = ? WHERE name = ?", [31, "Awa"])
@@ -200,6 +202,8 @@ def _exec_sql(path, sql, params=None):
             conn.commit()
             return result
         conn.commit()
+        if low.startswith("insert"):
+            return cur.lastrowid
         return cur.rowcount
     finally:
         conn.close()

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.15.0] — `execSQL` renvoie le nouvel id sur INSERT
+
+### Changé
+
+- `DataImport.execSQL(db, sql, params)` renvoie désormais, pour un **INSERT**,
+  l'identifiant de la ligne créée (`lastrowid`) au lieu du simple nombre de
+  lignes affectées. Permet à un ORM de renvoyer le nouvel id depuis `save`
+  (ex. rediriger vers `/articles/:id` après création). UPDATE / DELETE / CREATE
+  renvoient toujours le `rowcount` ; SELECT / PRAGMA la liste des lignes.
+
+---
+
 ## [0.14.0] — En-têtes de requête HTTP & correctif `String.split`
 
 ### Ajouté

@@ -868,6 +868,17 @@ def test_server_route_matching():
 
 
 
+def test_execsql_insert_returns_lastrowid(tmp_path):
+    # Régression (0.15.0) : execSQL renvoie l'id de la ligne créée sur INSERT
+    # (lastrowid), pas le rowcount — requis par l'ORM (save -> nouvel id).
+    from vm.native_funcs import _exec_sql
+    db = str(tmp_path / "t.db")
+    _exec_sql(db, "CREATE TABLE a (id INTEGER PRIMARY KEY, nom TEXT)", [])
+    id1 = _exec_sql(db, "INSERT INTO a (nom) VALUES (?)", ["x"])
+    id2 = _exec_sql(db, "INSERT INTO a (nom) VALUES (?)", ["y"])
+    assert id1 == 1 and id2 == 2
+
+
 def test_string_split_is_indexable(capsys):
     # Régression (0.14.0) : String.split doit renvoyer une liste indexable
     # (et non une liste Python brute). Débloque le parsing cookie/"sel$hash".
