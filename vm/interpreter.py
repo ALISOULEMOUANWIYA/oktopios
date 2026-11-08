@@ -1827,6 +1827,12 @@ class Interpreter:
                 if not isinstance(index, int):
                     raise Exception("[Erreur] L'index d'une liste doit être un entier")
                 valeur = container.get(index)
+            elif isinstance(container, (list, tuple)):
+                # liste/tuple Python brut (ex. résultat d'une concaténation) :
+                # accès par index numérique, pour rester indexable comme OktopiosList
+                if not isinstance(index, int):
+                    raise Exception("[Erreur] L'index d'une liste doit être un entier")
+                valeur = container[index]
             else:
                 raise Exception(f"[Erreur] Type non indexable : {type(container).__name__}")
             return valeur
@@ -3161,6 +3167,10 @@ class Interpreter:
                 return left + str(right)
             elif not isinstance(left, str) and isinstance(right, str):
                 return str(left) + right
+            # Concaténation de listes : renvoyer une OktopiosList (indexable),
+            # car list.__add__ renverrait une liste Python brute non indexable.
+            if isinstance(left, (OktopiosList, list)) and isinstance(right, (OktopiosList, list)):
+                return OktopiosList(list(left) + list(right))
             return left + right
         elif op_type == TokenType.MINUS:
             return left - right

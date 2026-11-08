@@ -868,6 +868,21 @@ def test_server_route_matching():
 
 
 
+def test_list_concat_is_indexable(capsys):
+    # Régression (0.16.0) : le résultat d'une concaténation de listes
+    # (`liste + [x]`, motif d'accumulation) doit rester indexable — sinon
+    # `resultat[0]` levait « Type non indexable : list » (ex. Repo.hydrate).
+    code = (
+        "var acc = []\n"
+        "acc = acc + [10]\n"
+        "acc = acc + [20]\n"
+        "acc = acc + [30]\n"
+        "print(acc[0])\n"
+        "print(acc[2])\n"
+    )
+    assert out(code, capsys) == "10\n30"
+
+
 def test_execsql_insert_returns_lastrowid(tmp_path):
     # Régression (0.15.0) : execSQL renvoie l'id de la ligne créée sur INSERT
     # (lastrowid), pas le rowcount — requis par l'ORM (save -> nouvel id).

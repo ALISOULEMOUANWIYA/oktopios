@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.16.0] — Concaténation de listes indexable
+
+### Corrigé
+
+- Le résultat d'une **concaténation de listes** (`liste + [x]`, motif
+  d'accumulation très courant) était une liste Python brute **non indexable** :
+  `resultat[0]` levait « Type non indexable : list ». Désormais `+` sur deux
+  listes renvoie une liste native indexable, et l'accès par index accepte aussi
+  toute liste/tuple Python. Débloque notamment `Repo.hydrate` de l'ORM
+  (`findBy(...)[0]`).
+
+---
+
 ## [0.15.0] — `execSQL` renvoie le nouvel id sur INSERT
 
 ### Changé
