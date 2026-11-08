@@ -2095,7 +2095,7 @@ NativeFuncs = {
         "repeat": lambda s, n: str(s) * int(n),
         "padStart": lambda s, width, char=" ": str(s).rjust(int(width), str(char)[0]),
         "padEnd": lambda s, width, char=" ": str(s).ljust(int(width), str(char)[0]),
-        "split": lambda s, sep=" ": s.split(sep),
+        "split": lambda s, sep=" ": _OktopiosList(str(s).split(sep)),
         "join": lambda sep, lst: str(sep).join(str(x) for x in lst),
         "format": lambda template, *args: template.format(*args),
     },

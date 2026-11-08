@@ -424,11 +424,13 @@ class Interpreter:
                     self.end_headers()
                     self.wfile.write(b"404 Not Found")
                     return
+                req_headers = {str(k).lower(): str(v) for k, v in self.headers.items()}
                 req = OktopiosMap({
                     "method": method,
                     "path": parsed.path,
                     "query": OktopiosMap(query),
                     "params": OktopiosMap(params),
+                    "headers": OktopiosMap(req_headers),
                     "body": body,
                 })
                 try:
@@ -478,6 +480,7 @@ class Interpreter:
                 self._dispatch("DELETE")
 
         httpd = HTTPServer((host, int(port)), _Handler)
+        self._httpd = httpd
         print(Fore.LIGHTGREEN_EX + f"[Server] Oktopios en ecoute sur http://{host}:{port} ({len(self._routes)} routes)" + Style.RESET_ALL)
         try:
             httpd.serve_forever()
@@ -485,7 +488,15 @@ class Interpreter:
             pass
         finally:
             httpd.server_close()
+            self._httpd = None
             print(Fore.YELLOW + "[Server] arrete." + Style.RESET_ALL)
+        return None
+
+    def _server_shutdown(self):
+        """Arrête proprement le serveur lancé par _server_run (utile aux tests)."""
+        httpd = getattr(self, "_httpd", None)
+        if httpd is not None:
+            httpd.shutdown()
         return None
 
     def schedule_task(self, intention_name, args):

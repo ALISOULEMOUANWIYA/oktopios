@@ -868,6 +868,48 @@ def test_server_route_matching():
 
 
 
+def test_string_split_is_indexable(capsys):
+    # Régression (0.14.0) : String.split doit renvoyer une liste indexable
+    # (et non une liste Python brute). Débloque le parsing cookie/"sel$hash".
+    code = (
+        "inject String\n"
+        'var parts = String.split("sel$empreinte", "$")\n'
+        "print(parts[0])\n"
+        "print(parts[1])\n"
+    )
+    assert out(code, capsys) == "sel\nempreinte"
+
+
+def test_server_request_exposes_headers():
+    # Régression (0.14.0) : la requête construite par le serveur expose `headers`
+    # (noms en minuscules) — base de l'authentification du framework.
+    import threading, urllib.request
+    from vm.interpreter import Interpreter
+
+    it = Interpreter()
+    captured = {}
+
+    def handler(req):
+        captured.update(dict(req))
+        return "ok"
+
+    it._server_route("GET", "/h", handler)
+    port = 8731
+    th = threading.Thread(target=it._server_run, args=(port, "127.0.0.1"), daemon=True)
+    th.start()
+    try:
+        import time
+        time.sleep(0.4)
+        r = urllib.request.Request("http://127.0.0.1:%d/h" % port,
+                                   headers={"X-Test": "abc"})
+        urllib.request.urlopen(r, timeout=3).read()
+    finally:
+        it._server_shutdown()
+    assert "headers" in captured
+    hdrs = dict(captured["headers"])
+    assert hdrs.get("x-test") == "abc"
+
+
 def test_assign_from_call_result(capsys):
     # Régression : réassigner une variable depuis un appel de fonction, y
     # compris dans une boucle (ex. pipeline de middlewares `resp = mw(req, resp)`).

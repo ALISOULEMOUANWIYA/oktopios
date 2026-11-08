@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.14.0] — En-têtes de requête HTTP & correctif `String.split`
+
+### Ajouté
+
+- Le map de requête passé aux contrôleurs du namespace `Server` expose désormais
+  **`headers`** (map des en-têtes HTTP, noms en minuscules). Permet de lire un
+  cookie, un `Authorization: Bearer ...`, etc. — base de l'authentification du
+  framework (`oktopios-framework` ≥ 0.7.0).
+
+### Corrigé
+
+- `String.split(s, sep)` renvoyait une liste Python brute **non indexable**
+  (`parts[0]` levait « Type non indexable : list »). Elle renvoie maintenant une
+  liste native indexable, cohérente avec `Regex.split`. L'itération reste
+  inchangée.
+
+---
+
 ## [0.13.0] — Correctif : assignation depuis un appel de fonction
 
 ### Corrigé
