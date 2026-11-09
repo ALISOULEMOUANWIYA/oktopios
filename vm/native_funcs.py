@@ -530,6 +530,17 @@ def _hash_hmac(key: str, msg: str, algo: str = "sha256") -> str:
         digestmod=_hashlib.new(algo).name
     ).hexdigest()
 
+def _hash_pbkdf2(password, salt, iterations=100000):
+    """Dérivation de clé PBKDF2-HMAC-SHA256 (hex). Adapté au hachage de mots de
+    passe : lent et paramétré par le nombre d'itérations (résistant au bruteforce)."""
+    dk = _hashlib.pbkdf2_hmac(
+        "sha256",
+        str(password).encode("utf-8"),
+        str(salt).encode("utf-8"),
+        int(iterations),
+    )
+    return dk.hex()
+
 def _hash_b64encode(s: str) -> str:
     return _base64.b64encode(str(s).encode("utf-8")).decode("ascii")
 
@@ -2613,6 +2624,9 @@ NativeFuncs = {
         # HMAC — code d'authentification de message
         # hmac(key, msg, algo?)  — algo par défaut : "sha256"
         "hmac":     lambda key, msg, algo="sha256": _hash_hmac(key, msg, algo),
+        # PBKDF2-HMAC-SHA256 — hachage de mot de passe (lent, paramétrable)
+        # pbkdf2(password, salt, iterations?)  — défaut : 100000 itérations
+        "pbkdf2":   lambda pw, salt, iters=100000: _hash_pbkdf2(pw, salt, iters),
         # Encodage / décodage Base64 standard (RFC 4648 §4)
         "b64encode":    lambda s: _hash_b64encode(s),
         "b64decode":    lambda s: _hash_b64decode(s),

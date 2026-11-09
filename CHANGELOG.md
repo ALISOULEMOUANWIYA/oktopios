@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.18.0] — `Hash.pbkdf2` (hachage de mot de passe)
+
+### Ajouté
+- `Hash.pbkdf2(password, salt, iterations?)` — dérivation PBKDF2-HMAC-SHA256
+  (hex), adaptée au hachage de mots de passe : lente et paramétrable
+  (100000 itérations par défaut), bien plus résistante au bruteforce qu'un
+  simple SHA-256. Utilisée par l'authentification du framework (≥ 0.15.0).
+
+---
+
 ## [0.17.1] — Serveur HTTP multi-thread
 
 ### Changé

@@ -868,6 +868,22 @@ def test_server_route_matching():
 
 
 
+def test_hash_pbkdf2(capsys):
+    # Nouveau (0.18.0) : Hash.pbkdf2 pour le hachage de mot de passe
+    # (déterministe par (mot de passe, sel), sensible aux deux).
+    code = (
+        "inject Hash\n"
+        "inject String\n"
+        'var h1 = Hash.pbkdf2("secret", "sel")\n'
+        'var h2 = Hash.pbkdf2("secret", "sel")\n'
+        'var h3 = Hash.pbkdf2("autre", "sel")\n'
+        'print(String.length(h1))\n'
+        'print(h1 == h2)\n'
+        'print(h1 != h3)\n'
+    )
+    assert out(code, capsys) == "64\ntrue\ntrue"
+
+
 def test_template_each_loop(capsys):
     # Nouveau (0.17.0) : boucles {{#each liste}}…{{/each}} dans les gabarits,
     # sur une liste de maps, avec variable externe accessible.
