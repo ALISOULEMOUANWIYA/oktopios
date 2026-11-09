@@ -868,6 +868,29 @@ def test_server_route_matching():
 
 
 
+def test_template_each_loop(capsys):
+    # Nouveau (0.17.0) : boucles {{#each liste}}…{{/each}} dans les gabarits,
+    # sur une liste de maps, avec variable externe accessible.
+    code = (
+        "inject Template\n"
+        'var arts = [ {"t": "A"}, {"t": "B"} ]\n'
+        'var tpl = "{{#each items}}[{{t}}{{sep}}]{{/each}}"\n'
+        'print(Template.render(tpl, { "items": arts, "sep": "!" }))\n'
+    )
+    assert out(code, capsys) == "[A!][B!]"
+
+
+def test_template_each_nested(capsys):
+    # Boucles imbriquées + {{this}} pour un scalaire.
+    code = (
+        "inject Template\n"
+        'var data = [ {"n": "A", "s": ["x", "y"]}, {"n": "B", "s": ["z"]} ]\n'
+        'var tpl = "{{#each rows}}{{n}}:{{#each s}}{{this}}{{/each}};{{/each}}"\n'
+        'print(Template.render(tpl, { "rows": data }))\n'
+    )
+    assert out(code, capsys) == "A:xy;B:z;"
+
+
 def test_version_is_real_not_hardcoded():
     # Régression (0.16.1) : `okp --version` lisait un fichier absent du wheel et
     # retombait sur "0.1.0" code en dur. On lit maintenant la vraie version

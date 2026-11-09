@@ -1783,21 +1783,89 @@ def _log_clear(path=None):
 # ---------------------------------------------------------------------------
 
 _TEMPLATE_RE = _re.compile(r'\{\{\s*(\w+)(?:\s*\|\s*([^}]*))?\s*\}\}')
+_EACH_OPEN_RE = _re.compile(r'\{\{\s*#each\s+(\w+)\s*\}\}')
+_EACH_ANY_OPEN_RE = _re.compile(r'\{\{\s*#each\s+\w+\s*\}\}')
+_EACH_CLOSE_RE = _re.compile(r'\{\{\s*/each\s*\}\}')
 
-def _template_render(template, variables, partial=False):
-    """Remplace {{var}} / {{var|défaut}} dans template par les valeurs de variables."""
+
+def _template_item_vars(item):
+    """Variables exposées à l'intérieur d'un {{#each}} pour un élément :
+    les clés d'une map, les champs d'un objet Oktopios, et toujours `this`."""
+    vars = {"this": item}
+    if isinstance(item, (dict, _OktopiosMap)):
+        vars.update(dict(item))
+    elif hasattr(item, "fields") and isinstance(getattr(item, "fields"), dict):
+        # Instance Oktopios : champ.value pour chaque champ
+        for k, f in item.fields.items():
+            vars[k] = getattr(f, "value", f)
+    return vars
+
+
+def _template_extract_each(template, start):
+    """À partir de `start` (juste après un {{#each}}), renvoie (corps, index
+    après le {{/each}} correspondant), en gérant l'imbrication."""
+    depth = 1
+    i = start
+    while i < len(template):
+        mo = _EACH_ANY_OPEN_RE.search(template, i)
+        mc = _EACH_CLOSE_RE.search(template, i)
+        if mc is None:
+            break
+        if mo is not None and mo.start() < mc.start():
+            depth += 1
+            i = mo.end()
+        else:
+            depth -= 1
+            if depth == 0:
+                return template[start:mc.start()], mc.end()
+            i = mc.end()
+    return template[start:], len(template)
+
+
+def _template_subst(template, variables, partial=False):
+    """Substitution simple {{var}} / {{var|défaut}} (sans boucles)."""
     def _sub(m):
         key = m.group(1)
-        default = m.group(2)  # None si pas de |
+        default = m.group(2)
         if key in variables:
             val = variables[key]
             return "" if val is None else str(val)
         if default is not None:
             return default
         if partial:
-            return m.group(0)   # laisser intact
-        return ""               # variable manquante → chaîne vide
+            return m.group(0)
+        return ""
     return _TEMPLATE_RE.sub(_sub, template)
+
+
+def _template_render(template, variables, partial=False):
+    """Rend un gabarit : boucles {{#each liste}}…{{/each}} (imbriquables) puis
+    substitution {{var}} / {{var|défaut}}. Compatible : sans #each, comportement
+    identique à l'ancienne substitution simple."""
+    if partial or "#each" not in template:
+        return _template_subst(template, variables, partial=partial)
+    out = []
+    pos = 0
+    while pos < len(template):
+        m = _EACH_OPEN_RE.search(template, pos)
+        if m is None:
+            out.append(_template_subst(template[pos:], variables))
+            break
+        # texte avant la boucle
+        out.append(_template_subst(template[pos:m.start()], variables))
+        name = m.group(1)
+        corps, fin = _template_extract_each(template, m.end())
+        items = variables.get(name)
+        try:
+            iterable = list(items) if items is not None else []
+        except TypeError:
+            iterable = []
+        for item in iterable:
+            iv = dict(variables)
+            iv.update(_template_item_vars(item))
+            out.append(_template_render(corps, iv))   # récursif (boucles imbriquées)
+        pos = fin
+    return "".join(out)
 
 def _template_vars(template):
     """Retourne la liste ordonnée (sans doublons) des variables présentes."""

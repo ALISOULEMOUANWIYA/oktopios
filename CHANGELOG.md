@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.17.0] — Boucles de gabarits `{{#each}}`
+
+### Ajouté
+- Le namespace `Template` gère désormais les **boucles** :
+  `{{#each liste}} … {{/each}}`. À l'intérieur, les `{{champ}}` référencent
+  l'élément courant (clés d'une map ou champs d'un objet), `{{this}}` l'élément
+  lui-même (listes de scalaires), et les variables externes restent accessibles.
+  Les boucles sont **imbriquables**. Sans `#each`, le comportement est inchangé.
+
+---
+
 ## [0.16.1] — `okp --version` affiche la vraie version
 
 ### Corrigé
