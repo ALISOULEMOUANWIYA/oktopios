@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.17.1] — Serveur HTTP multi-thread
+
+### Changé
+- `Server.run` utilise désormais un serveur **multi-thread**
+  (`ThreadingHTTPServer`) : les requêtes concurrentes sont traitées en parallèle
+  au lieu d'être sérialisées (prod-ready, derrière un reverse-proxy).
+
+---
+
 ## [0.17.0] — Boucles de gabarits `{{#each}}`
 
 ### Ajouté

@@ -969,6 +969,46 @@ def test_server_request_exposes_headers():
     assert hdrs.get("x-test") == "abc"
 
 
+def test_server_handles_concurrent_requests():
+    # Nouveau (0.17.1) : le serveur est multi-thread — deux requêtes lentes
+    # simultanées se recouvrent (durée totale ~= une seule, pas la somme).
+    # On mesure avec deux sockets ouvertes en parallèle (un client urllib
+    # multi-thread sérialise sur certaines plateformes et fausserait la mesure).
+    import socket, threading, time
+    from vm.interpreter import Interpreter
+
+    it = Interpreter()
+
+    def slow(req):
+        time.sleep(0.4)
+        return "ok"
+
+    it._server_route("GET", "/slow", slow)
+    port = 8732
+    th = threading.Thread(target=it._server_run, args=(port, "127.0.0.1"), daemon=True)
+    th.start()
+    time.sleep(0.4)
+
+    try:
+        socks = [socket.create_connection(("127.0.0.1", port), timeout=5) for _ in range(2)]
+        start = time.time()
+        for s in socks:
+            s.sendall(b"GET /slow HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+        for s in socks:
+            data = b""
+            while b"ok" not in data:
+                chunk = s.recv(1024)
+                if not chunk:
+                    break
+                data += chunk
+            s.close()
+        total = time.time() - start
+    finally:
+        it._server_shutdown()
+    # En concurrence, 2 requêtes de ~0.4s se terminent en nettement moins de 0.8s.
+    assert total < 0.7, total
+
+
 def test_assign_from_call_result(capsys):
     # Régression : réassigner une variable depuis un appel de fonction, y
     # compris dans une boucle (ex. pipeline de middlewares `resp = mw(req, resp)`).

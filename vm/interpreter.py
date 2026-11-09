@@ -395,7 +395,7 @@ class Interpreter:
         """Démarre un serveur HTTP bloquant qui dispatche chaque requête vers le
         contrôleur Oktopios de la route correspondante."""
         import json as _json
-        from http.server import BaseHTTPRequestHandler, HTTPServer
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
         from urllib.parse import urlparse, parse_qs
         interp = self
 
@@ -479,7 +479,9 @@ class Interpreter:
             def do_DELETE(self):
                 self._dispatch("DELETE")
 
-        httpd = HTTPServer((host, int(port)), _Handler)
+        # Serveur multi-thread : gère les requêtes concurrentes (prod-ready).
+        httpd = ThreadingHTTPServer((host, int(port)), _Handler)
+        httpd.daemon_threads = True
         self._httpd = httpd
         print(Fore.LIGHTGREEN_EX + f"[Server] Oktopios en ecoute sur http://{host}:{port} ({len(self._routes)} routes)" + Style.RESET_ALL)
         try:
