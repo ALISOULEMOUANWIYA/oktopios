@@ -37,21 +37,22 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 command -v python3 >/dev/null 2>&1 || fail "python3 introuvable après installation"
 ok "Python $(python3 --version 2>&1 | awk '{print $2}')"
+if ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 8))'; then
+    fail "Python 3.8 ou plus récent est requis."
+fi
 
 # 3. Installer Oktopios via pip
 printf '\n  %s[3/3]%s Installation d'\''Oktopios...\n' "$BOLD" "$RESET"
 
 # Alpine récent applique PEP 668 (environnement « externally-managed ») :
 # pip refuse d'installer dans le système sans --break-system-packages.
-# On tente d'abord l'install simple, puis les replis nécessaires.
+# On tente d'abord l'installation simple, puis le repli PEP 668.
 if python3 -m pip install --upgrade oktopios >/dev/null 2>&1; then
     ok "Oktopios installé"
 elif python3 -m pip install --upgrade --break-system-packages oktopios >/dev/null 2>&1; then
     ok "Oktopios installé (--break-system-packages)"
-elif python3 -m pip install --upgrade --break-system-packages --ignore-requires-python oktopios >/dev/null 2>&1; then
-    ok "Oktopios installé (Python ancien, contrainte de version ignorée)"
 else
-    fail "Échec de l'installation via pip. Essayez manuellement : python3 -m pip install --break-system-packages oktopios"
+    fail "Échec de l'installation via pip. Vérifiez Python/pip puis réessayez : python3 -m pip install --break-system-packages oktopios"
 fi
 
 # Vérification

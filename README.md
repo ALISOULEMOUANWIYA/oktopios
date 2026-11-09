@@ -146,13 +146,9 @@ pip install oktopios
 okp --version
 ```
 
-Le cœur d'Oktopios est pur Python et ne dépend d'aucune extension à compiler,
-donc l'installation fonctionne même sur les anciens builds de Termux. Si votre
-Python est plus ancien que 3.8 et que `pip` refuse l'installation, forcez-la :
-
-```bash
-pip install --ignore-requires-python oktopios
-```
+Le cœur d'Oktopios est pur Python et ne dépend d'aucune extension à compiler.
+Python 3.8 ou plus récent reste nécessaire ; mettez Termux et Python à jour si
+votre environnement utilise une version plus ancienne.
 
 ### iPhone ou iPad avec iSH 🐙
 

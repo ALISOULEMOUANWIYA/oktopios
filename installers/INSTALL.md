@@ -1,5 +1,7 @@
 # 🐙 Oktopios — Guide d'installation par plateforme
 
+Python 3.8 ou plus récent est requis sur toutes les plateformes.
+
 ## 🪟 Windows
 
 ### Méthode 1 — Script automatique (recommandé)

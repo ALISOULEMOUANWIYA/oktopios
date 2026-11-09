@@ -35,6 +35,9 @@ if ! command -v python3 &>/dev/null; then
     fi
 fi
 ok "Python $(python3 --version 2>&1 | awk '{print $2}')"
+if ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 8))'; then
+    fail "Python 3.8 ou plus récent est requis."
+fi
 
 # 2. Installer Oktopios (pip --user)
 step 2 3 "Installation d'Oktopios (pip)..."
@@ -49,14 +52,26 @@ fi
 # 3. PATH (dossier des scripts utilisateur, ex. ~/Library/Python/3.x/bin)
 step 3 3 "Configuration du PATH..."
 USER_BIN="$(python3 -m site --user-base 2>/dev/null)/bin"
-SHELL_RC="$HOME/.zshrc"
-[ -n "${BASH_VERSION:-}" ] && SHELL_RC="$HOME/.bash_profile"
+case "${SHELL:-}" in
+    */bash)
+        SHELL_RC="$HOME/.bash_profile"
+        PATH_LINE="export PATH=\"$USER_BIN:\$PATH\""
+        ;;
+    */fish)
+        SHELL_RC="$HOME/.config/fish/config.fish"
+        PATH_LINE="set -gx PATH \"$USER_BIN\" \$PATH"
+        ;;
+    *)
+        SHELL_RC="$HOME/.zshrc"
+        PATH_LINE="export PATH=\"$USER_BIN:\$PATH\""
+        ;;
+esac
 if [ -n "$USER_BIN" ] && ! echo "$PATH" | grep -q "$USER_BIN"; then
     if ! grep -q "$USER_BIN" "$SHELL_RC" 2>/dev/null; then
         {
             echo ""
             echo "# Oktopios"
-            echo "export PATH=\"$USER_BIN:\$PATH\""
+            echo "$PATH_LINE"
         } >> "$SHELL_RC"
     fi
     export PATH="$USER_BIN:$PATH"

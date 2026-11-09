@@ -24,11 +24,13 @@ Write-Header
 # 1. Vérifier Python
 Write-Step 1 3 "Verification de Python..."
 try {
-    $pyver = (python --version 2>&1)
-    if (-not ($pyver -match "Python \d+\.\d+")) { throw "not found" }
-    Write-OK "$pyver detecte"
+    $pyVersion = python -c "import sys; print('%d.%d' % sys.version_info[:2])"
+    if ($LASTEXITCODE -ne 0 -or [version]$pyVersion -lt [version]'3.8') {
+        Write-Fail "Python 3.8 ou plus recent est requis."
+    }
+    Write-OK "Python $pyVersion detecte"
 } catch {
-    Write-Fail "Python non installe. Telechargez sur https://python.org (cochez 'Add Python to PATH')"
+    Write-Fail "Python 3.8+ non installe. Telechargez sur https://python.org (cochez 'Add Python to PATH')"
 }
 
 # 2. Installer Oktopios via pip
@@ -42,21 +44,23 @@ Write-OK "Oktopios installe"
 
 # 3. S'assurer que le dossier des scripts est dans le PATH
 Write-Step 3 3 "Verification du PATH..."
-$scriptsDir = (python -c "import sysconfig; print(sysconfig.get_path('scripts'))" 2>$null)
-if (-not $scriptsDir) {
-    $scriptsDir = (python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))" 2>$null)
-}
-if ($scriptsDir -and (Test-Path $scriptsDir)) {
+$scriptsDirs = @(
+    (python -c "import sysconfig; print(sysconfig.get_path('scripts'))" 2>$null).Trim(),
+    (python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))" 2>$null).Trim()
+) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+if ($scriptsDirs.Count -gt 0 -and -not (Get-Command okp -ErrorAction SilentlyContinue)) {
     $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
-    if ($userPath -notlike "*$scriptsDir*") {
-        [Environment]::SetEnvironmentVariable("PATH", "$userPath;$scriptsDir", "User")
-        $env:PATH = "$env:PATH;$scriptsDir"
-        Write-OK "$scriptsDir ajoute au PATH utilisateur"
+    $pathsToAdd = @($scriptsDirs | Where-Object { ($userPath -split ';') -notcontains $_ })
+    if ($pathsToAdd.Count -gt 0) {
+        $newUserPath = (@($userPath) + $pathsToAdd | Where-Object { $_ }) -join ';'
+        [Environment]::SetEnvironmentVariable("PATH", $newUserPath, "User")
+        $env:PATH = (@($env:PATH) + $pathsToAdd) -join ';'
+        Write-OK "$($pathsToAdd -join ', ') ajoute au PATH utilisateur"
     } else {
         Write-OK "Dossier des scripts deja dans le PATH"
     }
 } else {
-    Write-OK "Dossier des scripts detecte via pip (okp fourni par l'entry-point)"
+    Write-OK "La commande okp est deja disponible ou le dossier utilisateur est indisponible"
 }
 
 # Résumé

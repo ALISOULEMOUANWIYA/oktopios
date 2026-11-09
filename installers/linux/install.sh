@@ -45,6 +45,9 @@ if ! python3 -m pip --version &>/dev/null; then
     python3 -m ensurepip --upgrade 2>/dev/null || true
 fi
 ok "Python $(python3 --version 2>&1 | awk '{print $2}')"
+if ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 8))'; then
+    fail "Python 3.8 ou plus récent est requis."
+fi
 
 # ── 2. Installer Oktopios (pip --user) ────────────────────────────────────────
 step 2 3 "Installation d'Oktopios (pip)..."
@@ -52,26 +55,33 @@ if python3 -m pip install --user --upgrade oktopios >/dev/null 2>&1; then
     ok "Oktopios installé"
 elif python3 -m pip install --user --upgrade --break-system-packages oktopios >/dev/null 2>&1; then
     ok "Oktopios installé (--break-system-packages)"
-elif python3 -m pip install --user --upgrade --break-system-packages --ignore-requires-python oktopios >/dev/null 2>&1; then
-    ok "Oktopios installé (Python ancien, contrainte de version ignorée)"
 else
-    fail "Échec de l'installation via pip. Essayez : python3 -m pip install --user oktopios"
+    fail "Échec de l'installation via pip. Vérifiez Python/pip puis réessayez : python3 -m pip install --user oktopios"
 fi
 
 # ── 3. PATH (dossier des scripts utilisateur) ─────────────────────────────────
 step 3 3 "Configuration du PATH..."
 USER_BIN="$(python3 -m site --user-base 2>/dev/null)/bin"
 case "$SHELL" in
-    */zsh)  SHELL_RC="$HOME/.zshrc" ;;
-    */fish) SHELL_RC="$HOME/.config/fish/config.fish" ;;
-    *)      SHELL_RC="$HOME/.bashrc" ;;
+    */zsh)
+        SHELL_RC="$HOME/.zshrc"
+        PATH_LINE="export PATH=\"$USER_BIN:\$PATH\""
+        ;;
+    */fish)
+        SHELL_RC="$HOME/.config/fish/config.fish"
+        PATH_LINE="set -gx PATH \"$USER_BIN\" \$PATH"
+        ;;
+    *)
+        SHELL_RC="$HOME/.bashrc"
+        PATH_LINE="export PATH=\"$USER_BIN:\$PATH\""
+        ;;
 esac
 if [ -n "$USER_BIN" ] && ! echo "$PATH" | grep -q "$USER_BIN"; then
     if ! grep -q "$USER_BIN" "$SHELL_RC" 2>/dev/null; then
         {
             echo ""
             echo "# Oktopios"
-            echo "export PATH=\"$USER_BIN:\$PATH\""
+            echo "$PATH_LINE"
         } >> "$SHELL_RC"
     fi
     export PATH="$USER_BIN:$PATH"
