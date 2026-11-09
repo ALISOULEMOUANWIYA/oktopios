@@ -868,6 +868,16 @@ def test_server_route_matching():
 
 
 
+def test_version_is_real_not_hardcoded():
+    # Régression (0.16.1) : `okp --version` lisait un fichier absent du wheel et
+    # retombait sur "0.1.0" code en dur. On lit maintenant la vraie version
+    # (metadonnees du paquet installe, sinon metadata/version.txt).
+    from vm.main import _version_oktopios
+    v = _version_oktopios()
+    assert v not in ("0.1.0", "inconnue"), v
+    assert v[0].isdigit(), v
+
+
 def test_list_concat_is_indexable(capsys):
     # Régression (0.16.0) : le résultat d'une concaténation de listes
     # (`liste + [x]`, motif d'accumulation) doit rester indexable — sinon

@@ -87,12 +87,22 @@ def _executer_code(code, chemin_source="<inline>"):
 
 # ─── Commandes ────────────────────────────────────────────────────────────────
 
+def _version_oktopios():
+    """Version d'Oktopios : métadonnées du paquet installé (fiable même en
+    wheel), sinon metadata/version.txt (arbre source), sinon 'inconnue'."""
+    try:
+        from importlib.metadata import version as _pkg_version
+        return _pkg_version("oktopios")
+    except Exception:
+        pass
+    meta = _lire_metadata("version.txt")
+    if meta and meta.strip():
+        return meta.strip()
+    return "inconnue"
+
+
 def cmd_version():
-    version = _lire_metadata("version.txt")
-    if version:
-        print(Fore.YELLOW + f"Oktopios version {version.strip()}" + Style.RESET_ALL)
-    else:
-        print(Fore.YELLOW + "Oktopios version 0.1.0" + Style.RESET_ALL)
+    print(Fore.YELLOW + f"Oktopios version {_version_oktopios()}" + Style.RESET_ALL)
 
 
 def cmd_aide():

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.16.1] — `okp --version` affiche la vraie version
+
+### Corrigé
+- `okp --version` affichait « 0.1.0 » (codé en dur) car `metadata/version.txt`
+  n'est pas embarqué dans le wheel. La version est désormais lue depuis les
+  **métadonnées du paquet installé** (`importlib.metadata`), avec repli sur
+  `metadata/version.txt` (arbre source).
+
+---
+
 ## [0.16.0] — Concaténation de listes indexable
 
 ### Corrigé
